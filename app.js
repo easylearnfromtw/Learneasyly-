@@ -137,6 +137,13 @@
     $("anaReviewed").textContent=last7.length;
     $("anaAccuracy").textContent=last7.length?Math.round(good7/last7.length*100)+"%":"—";
     $("anaAccuracySample").textContent=last7.length?"共 "+last7.length+" 次複習":"尚無樣本";
+    const prev7=S.reviews.filter(r=>{const age=dayDiff(localDate(),r.date);return age>=7&&age<14;});
+    const recentPct=last7.length?good7/last7.length*100:0;
+    const prevPct=prev7.length?prev7.filter(r=>r.rating==="good").length/prev7.length*100:0;
+    const delta=Math.round(recentPct-prevPct);
+    $("weeklyDelta").textContent=last7.length>=5&&prev7.length>=5?
+      "最近 7 天與前 7 天相比："+(delta>0?"+":"")+delta+" 個百分點（本期 "+last7.length+" 次／上期 "+prev7.length+" 次重做）。":
+      "最近 7 天 "+last7.length+" 次／前 7 天 "+prev7.length+" 次重做；兩期各至少 5 次，才顯示進步幅度。";
     const hard=S.questions.filter(q=>(q.difficulty||3)>=4);
     $("anaHard").textContent=hard.length?Math.round(hard.filter(isMastered).length/hard.length*100)+"%":"—";
     let weeks=[];
