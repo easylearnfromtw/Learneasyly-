@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7f8f5">
+  <meta name="description" content="LearnEasyly — 學測百日智慧錯題本。拍照、辨識、複習、成長。">
+  <title>LearnEasyly — 學測百日錯題本</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <a href="#" class="logo" aria-label="LearnEasyly 首頁" data-go="overview"><span class="logo-mark">L<span>.</span></span><span class="logo-word">learn<span>easyly</span><small>PERSONAL STUDY SPACE</small></span></a>
+      <div class="nav-group-label">WORKSPACE</div>
+      <nav id="sideNav" aria-label="主要導覽">
+        <button class="nav-item active" data-go="overview"><span class="nav-icon">◫</span>總覽 <span class="nav-short">01</span></button>
+        <button class="nav-item" data-go="add"><span class="nav-icon">＋</span>新增錯題</button>
+        <button class="nav-item" data-go="library"><span class="nav-icon">▤</span>錯題資料庫</button>
+        <button class="nav-item" data-go="review"><span class="nav-icon">◎</span>今日複習 <span class="due-pill" id="navDue">0</span></button>
+        <button class="nav-item" data-go="analytics"><span class="nav-icon">↗</span>學習分析</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <button class="nav-item" data-go="settings"><span class="nav-icon">⚙</span>設定與備份</button>
+        <div class="privacy-mini"><span class="privacy-dot"></span> LOCAL FIRST <small>你的資料只儲存在本裝置</small></div>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div class="crumb"><span>LEARNING WORKSPACE</span><span class="slash">/</span><strong id="pageCrumb">總覽</strong></div>
+        <div class="top-actions"><span class="date-text" id="todayText"></span><button class="btn btn-dark small" data-go="add">＋ 新增錯題</button></div>
+      </header>
+      <div class="content">
+        <section class="page active" id="page-overview">
+          <div class="heading-line"><div><div class="eyebrow">YOUR STUDY JOURNEY</div><h1>每一次弄懂，<br><em>都更接近理想的自己。</em></h1><p>把不會的題目留下，把學會的證據累積起來。</p></div><div class="heading-badge">2027 GSAT <span>✳</span></div></div>
+          <div class="hero-grid">
+            <div class="countdown-card">
+              <div class="card-upper"><span class="micro">THE COUNTDOWN</span><span class="circle-arrow">↗</span></div>
+              <div class="countdown-center"><span class="count-number" id="countDays">—</span><div class="count-suffix">DAYS <small>TO GO</small></div></div>
+              <div class="countdown-bottom"><div>距離 116 學年度學測</div><strong id="examDisplay">2027 / 01 / 22</strong></div>
+              <div class="decor-orbit orbit-a"></div><div class="decor-orbit orbit-b"></div>
+            </div>
+            <div class="welcome-card"><div class="small-label">TODAY'S FOCUS <span>✦</span></div><h2>今天，先解決<br>最重要的一題。</h2><p id="focusText">先收錄一題今天不會的題目，開始建立你的進步軌跡。</p><button class="text-link" data-go="review">開始複習 <span>↗</span></button><div class="welcome-art">✳</div></div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><span>累積錯題 <b>01</b></span><strong id="statTotal">0</strong><small>已整理題目</small></div>
+            <div class="metric"><span>待複習 <b>02</b></span><strong id="statDue">0</strong><small>今天該再看一次</small></div>
+            <div class="metric"><span>掌握率 <b>03</b></span><strong id="statMastery">—</strong><small>重做表現追蹤</small></div>
+            <div class="metric"><span>已複習 <b>04</b></span><strong id="statReviews">0</strong><small>累積重做次數</small></div>
+          </div>
+          <div class="two-col">
+            <div class="panel"><div class="panel-head"><div><div class="eyebrow">WEEKLY MOMENTUM</div><h2>本週學習節奏</h2></div><button class="ghost-link" data-go="analytics">詳細分析 ↗</button></div><p class="muted">每日新增錯題與複習次數（最近 7 天）</p><div class="activity-chart" id="overviewChart"></div><div class="chart-legend"><span><i class="dot dark"></i>新增錯題</span><span><i class="dot green"></i>完成複習</span></div></div>
+            <div class="panel"><div class="panel-head"><div><div class="eyebrow">RECENT ACTIVITY</div><h2>最近收藏的錯題</h2></div><button class="ghost-link" data-go="library">查看全部 ↗</button></div><div id="recentList" class="recent-list"></div></div>
+          </div>
+          <div class="daily-panel"><div><div class="eyebrow">DAILY PRACTICE LOG</div><h2>今日練習紀錄</h2><p>額外記錄今天「總共做了幾題」，進步分析才不會只看錯題數。</p></div><form id="dailyForm" class="daily-fields"><label>今日做題數<input id="dailyTotal" type="number" min="0" max="9999" value="0"></label><label>今日答對數<input id="dailyCorrect" type="number" min="0" max="9999" value="0"></label><button class="btn btn-dark" type="submit">記錄</button></form></div>
+        </section>
+        <section class="page" id="page-add">
+          <div class="page-heading"><div class="eyebrow">BUILD YOUR KNOWLEDGE</div><h1 id="editorHeading">新增一筆錯題<span class="accent-dot">.</span></h1><p>從一張照片開始，保存你今天釐清的觀念。</p></div>
+          <form id="questionForm" class="form-layout">
+            <div class="form-main">
+              <div class="panel">
+                <div class="step-title"><span>01</span><div><h2>題目與照片</h2><p>保留原始影像，辨識後可人工修正文字。</p></div></div>
+                <div class="photo-drop" id="photoDrop"><div id="photoEmpty"><div class="upload-symbol">↥</div><strong>拍照或選擇題目圖片</strong><small>支援 JPG、PNG、HEIC（依瀏覽器解碼能力）</small></div><img id="photoPreview" alt="題目圖片預覽" hidden></div>
+                <input type="file" accept="image/*" id="galleryInput" hidden><input type="file" accept="image/*" capture="environment" id="cameraInput" hidden>
+                <div class="button-row"><button type="button" class="btn btn-outline" id="takePhoto">⌾ 開啟相機</button><button type="button" class="btn btn-outline" id="choosePhoto">▧ 相簿選擇</button><button type="button" class="btn btn-soft" id="runOcr">✳ 自動轉文字</button><button type="button" class="btn btn-subtle" id="removePhoto">移除圖片</button></div><div id="ocrStatus" class="status-note" role="status">OCR 需要網路載入辨識模型；數學公式與圖表請自行校對。</div>
+                <div class="field"><label for="questionText">題目文字 <span>可編輯</span></label><textarea id="questionText" rows="5" placeholder="辨識結果會顯示在這裡，也可以直接貼上題目文字。"></textarea></div>
+              </div>
+              <div class="panel">
+                <div class="step-title"><span>02</span><div><h2>解答與理解</h2><p>從 ChatGPT 貼入詳解，留住自己的理解。</p></div></div>
+                <div class="field"><label for="answerText">正確答案</label><input id="answerText" maxlength="500" placeholder="例如：x = 9"></div>
+                <div class="field"><label for="solutionText">完整詳解 <span>貼上 GPT 解析</span></label><textarea id="solutionText" rows="9" placeholder="把 ChatGPT 的步驟、解析、其他解法貼進來……"></textarea></div>
+                <div class="field"><label for="reflectionText">自己的補充 <span>選填</span></label><textarea id="reflectionText" rows="3" placeholder="這題我原本卡在哪？下次要注意什麼？"></textarea></div>
+              </div>
+            </div>
+            <div class="form-side">
+              <div class="panel sticky-panel"><div class="step-title"><span>03</span><div><h2>題目分類</h2><p>完成標記並保存</p></div></div>
+                <div class="field"><label for="subjectField">科目</label><select id="subjectField" required><option>數學 A</option><option>數學 B</option><option>國文</option><option>英文</option><option>物理</option><option>化學</option><option>生物</option><option>地球科學</option><option>歷史</option><option>地理</option><option>公民</option><option>其他</option></select></div>
+                <div class="field"><label for="topicField">單元 / 主題</label><input id="topicField" maxlength="80" placeholder="例如：排列組合"></div>
+                <div class="field"><label for="sourceField">題目來源 <span>選填</span></label><input id="sourceField" maxlength="120" placeholder="例如：模擬考第 12 題"></div>
+                <div class="field"><label>難度等級</label><div class="level-options" id="levelOptions"><label><input type="radio" name="difficulty" value="1"><span>1</span></label><label><input type="radio" name="difficulty" value="2"><span>2</span></label><label><input type="radio" name="difficulty" value="3" checked><span>3</span></label><label><input type="radio" name="difficulty" value="4"><span>4</span></label><label><input type="radio" name="difficulty" value="5"><span>5</span></label></div><small class="hint">1 基礎 ・ 3 中等 ・ 5 高難度</small></div>
+                <div class="field"><label for="reasonField">錯誤原因</label><select id="reasonField"><option value="觀念不清">觀念不清</option><option value="計算失誤">計算失誤</option><option value="審題錯誤">審題錯誤</option><option value="時間不足">時間不足</option><option value="完全不會">完全不會</option><option value="其他">其他</option></select></div>
+                <button type="submit" class="btn btn-dark wide" id="saveBtn">儲存這道錯題 ↗</button><button type="button" class="btn btn-subtle wide" id="cancelEdit">取消 / 清空</button><div id="saveStatus" class="status-note" role="status"></div>
+              </div>
+            </div>
+          </form>
+        </section>
+        <section class="page" id="page-library">
+          <div class="page-heading"><div class="eyebrow">YOUR QUESTION ARCHIVE</div><h1>錯題資料庫<span class="accent-dot">.</span></h1><p>收集只是第一步，能再做對才是終點。</p></div>
+          <div class="panel"><div class="filter-line"><input id="searchInput" type="search" placeholder="搜尋題目、單元、詳解或來源"><select id="subjectFilter"><option value="">全部科目</option></select><select id="sortFilter"><option value="new">最新加入</option><option value="old">最早加入</option><option value="due">最需複習</option><option value="hard">難度最高</option></select></div><div id="libraryList" class="library-list"></div></div>
+        </section>
+        <section class="page" id="page-review">
+          <div class="page-heading"><div class="eyebrow">ACTIVE RECALL</div><h1>今日複習<span class="accent-dot">.</span></h1><p>先嘗試獨立作答，再看詳解。答題表現會影響下次複習日期。</p></div>
+          <div class="review-summary"><div><strong id="reviewRemaining">0</strong><span>待複習題目</span></div><div><strong id="reviewCompleted">0</strong><span>今日已完成</span></div></div><div id="reviewArea"></div>
+        </section>
+        <section class="page" id="page-analytics">
+          <div class="page-heading"><div class="eyebrow">EVIDENCE OF PROGRESS</div><h1>學習分析<span class="accent-dot">.</span></h1><p>看見自己的進步，也看見需要優先處理的弱點。</p></div>
+          <div class="metric-grid analytics-metrics"><div class="metric"><span>過去 7 天新增</span><strong id="anaAdded">0</strong><small>題</small></div><div class="metric"><span>過去 7 天複習</span><strong id="anaReviewed">0</strong><small>次</small></div><div class="metric"><span>近 7 天重做答對率</span><strong id="anaAccuracy">—</strong><small id="anaAccuracySample">尚無樣本</small></div><div class="metric"><span>高難度掌握</span><strong id="anaHard">—</strong><small>Lv.4–5 連續答對兩次</small></div></div>
+          <div class="two-col"><div class="panel"><div class="panel-head"><div><div class="eyebrow">LAST 8 WEEKS</div><h2>每週複習正確率</h2></div></div><div id="weekAccuracy" class="week-chart"></div><p class="footnote">僅計算重做紀錄；每週顯示樣本數。樣本少時不可直接推論能力提升。</p></div><div class="panel"><div class="panel-head"><div><div class="eyebrow">SUBJECT BREAKDOWN</div><h2>科目狀況</h2></div></div><div id="subjectProgress"></div></div></div>
+          <div class="two-col"><div class="panel"><div class="panel-head"><div><div class="eyebrow">ERROR PATTERNS</div><h2>最常出錯的原因</h2></div></div><div id="errorReasons"></div></div><div class="panel"><div class="panel-head"><div><div class="eyebrow">PRIORITY TOPICS</div><h2>優先複習單元</h2></div></div><div id="weakTopics"></div></div></div>
+          <div class="panel"><div class="panel-head"><div><div class="eyebrow">PRACTICE ACCURACY</div><h2>每日練習紀錄</h2></div></div><div id="dailyAnalysis"></div><p class="footnote">每日答對率僅使用你主動填寫的總做題數與答對數，不會把「錯題數」誤當成總題數。</p></div>
+        </section>
+        <section class="page" id="page-settings">
+          <div class="page-heading"><div class="eyebrow">OWN YOUR DATA</div><h1>設定與備份<span class="accent-dot">.</span></h1><p>純前端、無帳號、沒有把錯題照片上傳到 GitHub。</p></div>
+          <div class="settings-grid">
+            <div class="panel"><div class="step-title"><span>01</span><div><h2>學測倒數設定</h2><p>預設 116 學年度學測首日</p></div></div><form id="settingsForm"><div class="field"><label for="examDate">目標日期</label><input type="date" id="examDate" required></div><button type="submit" class="btn btn-dark">儲存日期</button></form></div>
+            <div class="panel"><div class="step-title"><span>02</span><div><h2>資料備份</h2><p>包含照片、錯題文字、詳解與複習紀錄</p></div></div><div class="backup-actions"><button id="exportBackup" class="btn btn-dark">↓ 匯出完整 JSON 備份</button><button id="importBackup" class="btn btn-outline">↑ 匯入備份</button><input type="file" accept="application/json,.json" id="importFile" hidden></div><p class="footnote" id="backupState">建議至少每 7 天備份一次，換手機或清除網站資料都可能導致本機紀錄遺失。</p></div>
+            <div class="panel"><div class="step-title"><span>03</span><div><h2>關於資料安全</h2></div></div><p>IndexedDB 將資料存在目前瀏覽器，不會自動同步到其他手機或電腦。瀏覽器若清除網站資料、空間不足，仍可能遺失紀錄。</p><p class="footnote">初次 OCR 需連網從 CDN 下載程式與語言模型；辨識在瀏覽器執行。數學根號、上下標和圖形請以原照片校對。離線模式僅保證已快取的網站基本介面，不保證 OCR 可離線啟動。</p></div>
+            <div class="panel danger-zone"><div class="step-title"><span>04</span><div><h2>資料管理</h2><p>這個操作無法復原</p></div></div><button id="eraseAll" class="btn btn-danger">清除本機所有資料</button></div>
+          </div>
+        </section>
+      </div>
+      <footer class="footer">LEARN EASYLY <span>© 2026 · BUILT FOR STEADY PROGRESS</span></footer>
+    </main>
+    <nav class="bottom-nav" aria-label="手機導覽"><button class="active" data-go="overview">⌂<span>總覽</span></button><button data-go="library">▤<span>錯題</span></button><button data-go="add" class="plus-mobile">＋<span>新增</span></button><button data-go="review">◎<span>複習</span></button><button data-go="analytics">↗<span>分析</span></button></nav>
+  </div>
+  <div class="modal-shell" id="detailModal" hidden><div class="modal-backdrop" data-close="modal"></div><article class="detail-modal"><div class="modal-title"><strong>錯題詳細內容</strong><button id="modalClose" aria-label="關閉">✕</button></div><div id="modalBody"></div></article></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
