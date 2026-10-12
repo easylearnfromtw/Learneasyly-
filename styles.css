@@ -44,3 +44,14 @@ textarea{overscroll-behavior:contain}
   .daily-fields .btn{flex:1 1 100%}
   .settings-grid .btn{max-width:100%}
 }
+
+/* v1.2: safe mathematical typesetting and backup safety */
+.backup-reminder{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:18px;padding:18px 22px;background:#fff9eb;border:1px solid #f0e2bb;border-radius:14px;color:#655334}
+.backup-reminder[hidden]{display:none}
+.backup-reminder strong{display:block;font-size:13px}
+.backup-reminder p{margin-top:4px;color:#927e58;font-size:11px}
+.backup-reminder .btn{white-space:nowrap;border-color:#dccb9d;background:#fffdf6;color:#86672d}
+.katex-display{overflow-x:auto;overflow-y:hidden;max-width:100%;padding:8px 2px}
+.review-question .katex,.review-answer .katex,.modal-body-section .katex{font-size:1.04em}
+.modal-body-section p,.review-answer p{line-height:2.05}
+@media(max-width:680px){.backup-reminder{display:block;padding:16px}.backup-reminder .btn{margin-top:12px;width:100%}.katex-display>.katex{white-space:nowrap}}
