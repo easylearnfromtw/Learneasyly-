@@ -12,7 +12,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script defer src="./app.js"></script>
 </head>
 <body>
@@ -69,13 +68,13 @@
                 <div class="step-title"><span>01</span><div><h2>題目與照片</h2><p>保留原始影像，辨識後可人工修正文字。</p></div></div>
                 <div class="photo-drop" id="photoDrop"><div id="photoEmpty"><div class="upload-symbol">↥</div><strong>拍照或選擇題目圖片</strong><small>支援 JPG、PNG、HEIC（依瀏覽器解碼能力）</small></div><img id="photoPreview" alt="題目圖片預覽" hidden></div>
                 <input type="file" accept="image/*" id="galleryInput" hidden><input type="file" accept="image/*" capture="environment" id="cameraInput" hidden>
-                <div class="button-row"><button type="button" class="btn btn-outline" id="takePhoto">⌾ 開啟相機</button><button type="button" class="btn btn-outline" id="choosePhoto">▧ 相簿選擇</button><button type="button" class="btn btn-soft" id="runOcr">✳ 自動轉文字</button><button type="button" class="btn btn-subtle" id="removePhoto">移除圖片</button></div><div id="ocrStatus" class="status-note" role="status">OCR 需要網路載入辨識模型；數學公式與圖表請自行校對。</div>
+                <div class="button-row"><button type="button" class="btn btn-outline" id="takePhoto">⌾ 開啟相機</button><button type="button" class="btn btn-outline" id="choosePhoto">▧ 相簿選擇</button><button type="button" class="btn btn-soft" id="runOcr">✳ 自動轉文字</button><button type="button" class="btn btn-outline" id="rotatePhoto">↻ 旋轉照片</button><button type="button" class="btn btn-subtle" id="removePhoto">移除圖片</button></div><div id="ocrStatus" class="status-note" role="status">OCR 需要網路載入辨識模型；數學公式與圖表請自行校對。</div>
                 <div class="field"><label for="questionText">題目文字 <span>可編輯</span></label><textarea id="questionText" rows="5" placeholder="辨識結果會顯示在這裡，也可以直接貼上題目文字。"></textarea></div>
               </div>
               <div class="panel">
                 <div class="step-title"><span>02</span><div><h2>解答與理解</h2><p>從 ChatGPT 貼入詳解，留住自己的理解。</p></div></div>
                 <div class="field"><label for="answerText">正確答案</label><input id="answerText" maxlength="500" placeholder="例如：x = 9"></div>
-                <div class="field"><label for="solutionText">完整詳解 <span>貼上 GPT 解析</span></label><textarea id="solutionText" rows="9" placeholder="把 ChatGPT 的步驟、解析、其他解法貼進來……"></textarea></div>
+                <div class="gpt-helper"><div><strong>先到 ChatGPT 解題</strong><p>複製專用提問模板，取得詳解與難度後貼回這裡。數學題可另外附照片。</p></div><button type="button" id="copyGPT" class="btn btn-outline">複製提問模板 ↗</button></div><div class="field"><label for="solutionText">完整詳解 <span>貼上 GPT 解析</span></label><textarea id="solutionText" rows="9" placeholder="把 ChatGPT 的步驟、解析、其他解法貼進來……"></textarea></div>
                 <div class="field"><label for="reflectionText">自己的補充 <span>選填</span></label><textarea id="reflectionText" rows="3" placeholder="這題我原本卡在哪？下次要注意什麼？"></textarea></div>
               </div>
             </div>
@@ -110,9 +109,9 @@
           <div class="page-heading"><div class="eyebrow">OWN YOUR DATA</div><h1>設定與備份<span class="accent-dot">.</span></h1><p>純前端、無帳號、沒有把錯題照片上傳到 GitHub。</p></div>
           <div class="settings-grid">
             <div class="panel"><div class="step-title"><span>01</span><div><h2>學測倒數設定</h2><p>預設 116 學年度學測首日</p></div></div><form id="settingsForm"><div class="field"><label for="examDate">目標日期</label><input type="date" id="examDate" required></div><button type="submit" class="btn btn-dark">儲存日期</button></form></div>
-            <div class="panel"><div class="step-title"><span>02</span><div><h2>資料備份</h2><p>包含照片、錯題文字、詳解與複習紀錄</p></div></div><div class="backup-actions"><button id="exportBackup" class="btn btn-dark">↓ 匯出完整 JSON 備份</button><button id="importBackup" class="btn btn-outline">↑ 匯入備份</button><input type="file" accept="application/json,.json" id="importFile" hidden></div><p class="footnote" id="backupState">建議至少每 7 天備份一次，換手機或清除網站資料都可能導致本機紀錄遺失。</p></div>
+            <div class="panel"><div class="step-title"><span>02</span><div><h2>資料備份</h2><p>包含照片、錯題文字、詳解與複習紀錄</p></div></div><div class="backup-actions"><button id="exportBackup" class="btn btn-dark">↓ 匯出完整 JSON 備份</button><button id="importBackup" class="btn btn-outline">↑ 合併匯入備份</button><input type="file" accept="application/json,.json" id="importFile" hidden></div><p class="footnote" id="backupState">建議至少每 7 天備份一次，換手機或清除網站資料都可能導致本機紀錄遺失。</p></div>
             <div class="panel"><div class="step-title"><span>03</span><div><h2>關於資料安全</h2></div></div><p>IndexedDB 將資料存在目前瀏覽器，不會自動同步到其他手機或電腦。瀏覽器若清除網站資料、空間不足，仍可能遺失紀錄。</p><p class="footnote">初次 OCR 需連網從 CDN 下載程式與語言模型；辨識在瀏覽器執行。數學根號、上下標和圖形請以原照片校對。離線模式僅保證已快取的網站基本介面，不保證 OCR 可離線啟動。</p></div>
-            <div class="panel danger-zone"><div class="step-title"><span>04</span><div><h2>資料管理</h2><p>這個操作無法復原</p></div></div><button id="eraseAll" class="btn btn-danger">清除本機所有資料</button></div>
+            <div class="panel"><div class="step-title"><span>04</span><div><h2>儲存空間保護</h2><p>管理 100 天以上的錯題圖片</p></div></div><p id="storageState" class="storage-state" aria-live="polite">正在檢查儲存空間……</p><button id="requestPersist" class="btn btn-outline">申請持久化儲存 ↗</button><p class="footnote">此設定不代表保證永久保存，仍建議每週下載備份。</p></div><div class="panel danger-zone"><div class="step-title"><span>05</span><div><h2>資料管理</h2><p>這個操作無法復原</p></div></div><button id="eraseAll" class="btn btn-danger">清除本機所有資料</button></div>
           </div>
         </section>
       </div>
