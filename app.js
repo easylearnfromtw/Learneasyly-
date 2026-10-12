@@ -22,6 +22,7 @@
   let toastTimer;
   let draftTimer = null;
   let ocrLoading = null;
+  let mathLoading = null;
   function toast(message) { const node = $("toast"); node.textContent=message; node.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>node.classList.remove("show"),3200); }
   function status(id,message,isError) { $(id).textContent=message; $(id).classList.toggle("error",!!isError); }
   function openDB() {
@@ -54,6 +55,38 @@
     if(tab==="analytics")renderAnalytics();
     if(tab==="settings")storageStatus();
   }
+
+  function injectScript(url) {
+    return new Promise((resolve,reject)=>{
+      const script=document.createElement("script");script.src=url;script.async=true;
+      script.onload=resolve;script.onerror=()=>reject(Error("無法載入公式排版程式"));
+      document.head.appendChild(script);
+    });
+  }
+  async function ensureMath() {
+    if(typeof window.renderMathInElement==="function")return;
+    if(!mathLoading)mathLoading=(async()=>{
+      if(!document.getElementById("katexStyle")){
+        const link=document.createElement("link");link.id="katexStyle";link.rel="stylesheet";link.href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css";document.head.appendChild(link);
+      }
+      await injectScript("https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js");
+      await injectScript("https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js");
+      if(typeof window.renderMathInElement!=="function")throw Error("公式排版函式無法啟動");
+    })().catch(e=>{mathLoading=null;console.warn("Math renderer unavailable",e);});
+    return mathLoading;
+  }
+  async function renderMath(root) {
+    if(!root)return;
+    const raw=root.textContent||"";
+    if(!raw.includes("\\(")&&!raw.includes("\\[")&&!raw.includes("$")&&!/\$[^$]+\$/.test(raw))return;
+    await ensureMath();
+    if(typeof window.renderMathInElement!=="function"||!root.isConnected)return;
+    window.renderMathInElement(root,{
+      delimiters:[{left:"$",right:"$",display:true},{left:"\\[",right:"\\]",display:true},{left:"\\(",right:"\\)",display:false},{left:"$",right:"$",display:false}],
+      throwOnError:false,trust:false,ignoredTags:["script","noscript","style","textarea","pre","code"]
+    });
+  }
+
   function renderOverview() {
     const remaining=Math.max(0,dayDiff(S.examDate,localDate()));
     $("countDays").textContent=remaining;
@@ -72,6 +105,7 @@
     const row=S.daily.find(d=>d.id===localDate());
     $("dailyTotal").value=row?row.total:0; $("dailyCorrect").value=row?row.correct:0;
     const lastBackup=localStorage.getItem("learneasyly-last-backup"); const days=lastBackup?dayDiff(localDate(),lastBackup):999;
+    $("backupReminder").hidden=!(S.questions.length>0&&days>=7);
     $("backupState").textContent=days>6?"目前沒有最近 7 天的備份紀錄。建議立即匯出一份完整備份並存到安全的位置。":"最近備份："+dateLabel(lastBackup)+"。建議每週備份一次，避免本機資料意外遺失。";
   }
   function renderLibrary() {
@@ -94,6 +128,7 @@
     if(!due.length){$("reviewArea").innerHTML='<div class="panel empty"><strong>今天的複習已完成 ✳</strong><span>暫時沒有到期題目。新錯題預設隔天開始重做。</span></div>';return;}
     let q=due.find(x=>x.id===S.reviewing)||due[0];S.reviewing=q.id;
     $("reviewArea").innerHTML='<article class="review-card"><div class="review-stage"><div class="question-pills"><span class="chip">'+esc(q.subject)+'</span><span class="chip light">'+esc(q.topic||"未分類")+'</span><span class="chip warn">Lv.'+esc(q.difficulty||3)+'</span></div><span class="muted">第 '+((q.reviewCount||0)+1)+' 次重做</span></div>'+(safeImage(q.image)?'<img class="review-image" src="'+safeImage(q.image)+'" alt="題目照片">':"")+'<div class="review-question">'+esc(q.question||"請依照上方照片自行作答。")+'</div>'+(S.revealed?'<div class="review-answer"><strong>答案</strong><p>'+esc(q.answer||"未填寫答案")+'</p><strong style="margin-top:15px">完整詳解</strong><p>'+esc(q.solution||"尚未提供詳解")+'</p>'+(q.reflection?'<strong style="margin-top:15px">當時的提醒</strong><p>'+esc(q.reflection)+'</p>':"")+'</div><div class="review-controls"><button class="btn btn-danger" data-review="again">不會｜明天再做</button><button class="btn btn-outline" data-review="hard">模糊｜2 天後</button><button class="btn btn-dark" data-review="good">答對｜間隔延長</button></div>':'<div class="review-controls"><button class="btn btn-dark" data-review="reveal">我已經試著作答，查看詳解 ↗</button></div>')+'<p class="review-hint">重做結果會用於評估掌握度與每週進步；請不要先看答案。</p></article>';
+    renderMath($("reviewArea"));
   }
   function monday(iso){const d=parseDate(iso),k=(d.getDay()+6)%7;d.setDate(d.getDate()-k);return localDate(d);}
   function renderAnalytics(){
@@ -251,7 +286,7 @@
       (safeImage(q.image)?'<img class="modal-image" alt="原始錯題照片" src="'+safeImage(q.image)+'">':"")+
       [['題目',q.question||"以原照片為準"],['答案',q.answer||"尚未填寫"],['GPT 詳解',q.solution||"尚未填寫"],['自己的補充',q.reflection],['題目來源',q.source],['錯誤原因',q.reason],['下次複習',dateLabel(q.dueDate)]].filter(x=>x[1]).map(x=>'<div class="modal-body-section"><h3>'+esc(x[0])+'</h3><p>'+esc(x[1])+'</p></div>').join("")+
       '<button class="btn btn-dark" data-action="edit" data-id="'+esc(q.id)+'">編輯這道題 ↗</button>';
-    $("detailModal").hidden=false;document.body.style.overflow="hidden";
+    $("detailModal").hidden=false;document.body.style.overflow="hidden";renderMath($("modalBody"));
   }
   function closeModal(){$("detailModal").hidden=true;document.body.style.overflow="";}
   async function handleAction(button){
