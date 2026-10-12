@@ -55,3 +55,5 @@ textarea{overscroll-behavior:contain}
 .review-question .katex,.review-answer .katex,.modal-body-section .katex{font-size:1.04em}
 .modal-body-section p,.review-answer p{line-height:2.05}
 @media(max-width:680px){.backup-reminder{display:block;padding:16px}.backup-reminder .btn{margin-top:12px;width:100%}.katex-display>.katex{white-space:nowrap}}
+
+.weekly-delta{font-size:11px;font-weight:650;line-height:1.75;color:#3f7655;background:#edf4ed;border:1px solid #deeadf;border-radius:9px;padding:11px 12px;margin:35px 0 10px}
