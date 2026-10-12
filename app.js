@@ -4,7 +4,7 @@
   const DB_NAME = "learneasyly-local-v1";
   const DB_VERSION = 1;
   const DEFAULT_DATE = "2027-01-22";
-  const S = { db: null, questions: [], reviews: [], daily: [], examDate: DEFAULT_DATE, image: "", editing: null, reviewing: null, revealed: false, tab: "overview" };
+  const S = { db: null, questions: [], reviews: [], daily: [], examDate: DEFAULT_DATE, image: "", editing: null, reviewing: null, revealed: false, tab: "overview", pageSize: 24 };
   const $ = (id) => document.getElementById(id);
   const all = (selector) => Array.from(document.querySelectorAll(selector));
   const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
@@ -20,6 +20,8 @@
   const stamp = () => new Date().toISOString();
   const truncate = (s,n) => { s = String(s || "").replace(/\s+/g," ").trim(); return s.length>n ? s.slice(0,n)+"…" : s; };
   let toastTimer;
+  let draftTimer = null;
+  let ocrLoading = null;
   function toast(message) { const node = $("toast"); node.textContent=message; node.classList.add("show"); clearTimeout(toastTimer); toastTimer=setTimeout(()=>node.classList.remove("show"),3200); }
   function status(id,message,isError) { $(id).textContent=message; $(id).classList.toggle("error",!!isError); }
   function openDB() {
@@ -50,6 +52,7 @@
     if(tab==="review"){S.reviewing=null;S.revealed=false;renderReview();}
     if(tab==="library")renderLibrary();
     if(tab==="analytics")renderAnalytics();
+    if(tab==="settings")storageStatus();
   }
   function renderOverview() {
     const remaining=Math.max(0,dayDiff(S.examDate,localDate()));
@@ -80,9 +83,11 @@
     if(sort==="hard")list.sort((a,b)=>(b.difficulty||0)-(a.difficulty||0));
     else if(sort==="due")list.sort((a,b)=>String(a.dueDate).localeCompare(String(b.dueDate)));
     else list.sort((a,b)=>sort==="old"?String(a.createdAt).localeCompare(String(b.createdAt)):String(b.createdAt).localeCompare(String(a.createdAt)));
-    $("libraryList").innerHTML=list.length?list.map(q=>'<div class="question-row">'+(safeImage(q.image)?'<img class="question-image" src="'+safeImage(q.image)+'" alt="錯題照片">':'<div class="question-fallback">'+esc((q.subject||"題").slice(0,2))+'</div>')+'<div class="question-center"><div class="question-pills"><span class="chip">'+esc(q.subject)+'</span><span class="chip light">Lv.'+esc(q.difficulty||3)+'</span>'+(isMastered(q)?'<span class="chip">已掌握</span>':(q.dueDate<=localDate()?'<span class="chip warn">待複習</span>':""))+'</div><h3>'+esc(truncate(q.question||q.topic||"圖片題",105))+'</h3><p>'+esc(q.topic||"未分類")+' · '+esc(dateLabel(q.createdDate))+' · 下次複習 '+esc(dateLabel(q.dueDate))+'</p></div><div class="question-actions"><button class="mini-btn" data-action="view" data-id="'+esc(q.id)+'">查看</button><button class="mini-btn" data-action="edit" data-id="'+esc(q.id)+'">編輯</button><button class="mini-btn danger" data-action="delete" data-id="'+esc(q.id)+'">刪除</button></div></div>').join(""):'<div class="empty"><strong>沒有找到符合條件的錯題</strong><span>調整搜尋條件，或先新增一題。</span></div>';
+    const visible=list.slice(0,S.pageSize);
+    $("libraryList").innerHTML=visible.length?visible.map(q=>'<div class="question-row">'+(safeImage(q.image)?'<img class="question-image" loading="lazy" src="'+safeImage(q.image)+'" alt="錯題照片">':'<div class="question-fallback">'+esc((q.subject||"題").slice(0,2))+'</div>')+'<div class="question-center"><div class="question-pills"><span class="chip">'+esc(q.subject)+'</span><span class="chip light">Lv.'+esc(q.difficulty||3)+'</span>'+(isMastered(q)?'<span class="chip">已掌握</span>':(q.dueDate<=localDate()?'<span class="chip warn">待複習</span>':""))+'</div><h3>'+esc(truncate(q.question||q.topic||"圖片題",105))+'</h3><p>'+esc(q.topic||"未分類")+' · '+esc(dateLabel(q.createdDate))+' · 下次複習 '+esc(dateLabel(q.dueDate))+'</p></div><div class="question-actions"><button class="mini-btn" data-action="view" data-id="'+esc(q.id)+'">查看</button><button class="mini-btn" data-action="edit" data-id="'+esc(q.id)+'">編輯</button><button class="mini-btn danger" data-action="delete" data-id="'+esc(q.id)+'">刪除</button></div></div>').join("")+(list.length>visible.length?'<div class="load-more-wrap"><button class="btn btn-outline" id="loadMoreQuestions">顯示更多 · 還有 '+(list.length-visible.length)+' 題 ↓</button></div>':''):'<div class="empty"><strong>沒有找到符合條件的錯題</strong><span>調整搜尋條件，或先新增一題。</span></div>';
+    const more=$("loadMoreQuestions");if(more)more.addEventListener("click",()=>{S.pageSize+=24;renderLibrary();});
   }
-  function renderReview(){
+    function renderReview(){
     const due=dueItems();
     $("reviewRemaining").textContent=due.length;
     $("reviewCompleted").textContent=S.reviews.filter(r=>r.date===localDate()).length;
@@ -111,44 +116,112 @@
     $("dailyAnalysis").innerHTML=S.daily.length?S.daily.slice().sort((a,b)=>String(b.id).localeCompare(String(a.id))).slice(0,14).map(d=>'<div class="analysis-list-item"><span>'+esc(dateLabel(d.id))+'</span><span>'+d.correct+'/'+d.total+' 題 <b>· '+(d.total?Math.round(d.correct/d.total*100)+"%":"無樣本")+'</b></span></div>').join(""):'<div class="empty">在首頁填寫每天的總做題數與答對題數。</div>';
   }
   function renderAll(){renderOverview();renderLibrary();renderReview();renderAnalytics();$("examDate").value=S.examDate;}
+  function editorSnapshot(){
+    return {editing:S.editing,image:safeImage(S.image),question:$("questionText").value,answer:$("answerText").value,solution:$("solutionText").value,
+      reflection:$("reflectionText").value,subject:$("subjectField").value,topic:$("topicField").value,source:$("sourceField").value,
+      difficulty:Number(document.querySelector('input[name="difficulty"]:checked').value),reason:$("reasonField").value};
+  }
+  function scheduleDraft(){
+    clearTimeout(draftTimer);
+    draftTimer=setTimeout(()=>{dbRequest("config","put",{key:"editorDraft",value:editorSnapshot(),updatedAt:stamp()}).catch(e=>console.warn("draft not saved",e));},750);
+  }
+  async function offerDraft(){
+    const config=await dbAll("config"),saved=config.find(x=>x.key==="editorDraft");
+    if(!saved||!saved.value)return;
+    const d=saved.value;
+    if(!d.question&&!d.solution&&!d.image&&!d.answer&&!d.topic)return;
+    if(!confirm("找到上次未儲存的錯題草稿，要繼續編輯嗎？")){await dbRequest("config","delete","editorDraft");return;}
+    S.editing=d.editing||null;S.image=safeImage(d.image);previewImage();
+    $("questionText").value=d.question||"";$("answerText").value=d.answer||"";$("solutionText").value=d.solution||"";
+    $("reflectionText").value=d.reflection||"";$("subjectField").value=d.subject||"數學 A";$("topicField").value=d.topic||"";
+    $("sourceField").value=d.source||"";$("reasonField").value=d.reason||"觀念不清";
+    const radio=document.querySelector('input[name="difficulty"][value="'+(Number(d.difficulty)||3)+'"]');if(radio)radio.checked=true;
+    if(S.editing){$("editorHeading").textContent="繼續編輯錯題.";$("saveBtn").textContent="儲存修改 ↗";}
+    setTab("add");toast("已還原未儲存的草稿");
+  }
   function resetEditor(){
+    clearTimeout(draftTimer);
+    if(S.db)dbRequest("config","delete","editorDraft").catch(()=>{});
     $("questionForm").reset();S.image="";S.editing=null;$("photoPreview").hidden=true;$("photoPreview").removeAttribute("src");$("photoEmpty").hidden=false;$("editorHeading").textContent="新增一筆錯題.";$("saveBtn").textContent="儲存這道錯題 ↗";status("ocrStatus","OCR 需要網路載入辨識模型；數學公式與圖表請自行校對。");status("saveStatus","");
     $("galleryInput").value="";$("cameraInput").value="";
   }
   function previewImage(){const im=$("photoPreview");im.hidden=!S.image;$("photoEmpty").hidden=!!S.image;if(S.image)im.src=S.image;else im.removeAttribute("src");}
+  function processedImage(img,rotation=0) {
+    const edge=1450,scale=Math.min(1,edge/Math.max(img.naturalWidth,img.naturalHeight));
+    const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
+    const canvas=document.createElement("canvas");
+    canvas.width=rotation%180?h:w;canvas.height=rotation%180?w:h;
+    const ctx=canvas.getContext("2d");ctx.translate(canvas.width/2,canvas.height/2);ctx.rotate(rotation*Math.PI/180);ctx.drawImage(img,-w/2,-h/2,w,h);
+    let image=canvas.toDataURL("image/jpeg",.78);
+    for(const quality of [.68,.58,.48]){if(image.length<=650000)break;image=canvas.toDataURL("image/jpeg",quality);}
+    return image;
+  }
   async function loadPhoto(file){
     if(!file)return;
     if(!file.type.startsWith("image/")){toast("請選擇圖片檔");return;}
     if(file.size>25*1024*1024){toast("圖片太大，請選擇小於 25 MB 的圖片");return;}
     status("ocrStatus","正在處理圖片……");
-    try{
-      const url=URL.createObjectURL(file);
-      const img=new Image();
+    let url;
+    try {
+      url=URL.createObjectURL(file);const img=new Image();
       await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error("無法解碼圖片，請改用 JPG 或 PNG"));img.src=url;});
-      const scale=Math.min(1,1600/Math.max(img.naturalWidth,img.naturalHeight)),canvas=document.createElement("canvas");
-      canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-      S.image=canvas.toDataURL("image/jpeg",.78);URL.revokeObjectURL(url);previewImage();
-      status("ocrStatus","圖片已加入並壓縮儲存。可點「自動轉文字」開始辨識。");
+      S.image=processedImage(img);previewImage();scheduleDraft();
+      status("ocrStatus","圖片已壓縮並加入錯題。可點「自動轉文字」辨識。");
     }catch(e){status("ocrStatus",e.message||"照片讀取失敗",true);}
+    finally{if(url)URL.revokeObjectURL(url);}
+  }
+  async function rotatePhoto(){
+    if(!S.image){toast("請先上傳圖片");return;}
+    const img=new Image();
+    try {await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error("無法旋轉照片"));img.src=S.image;});S.image=processedImage(img,90);previewImage();scheduleDraft();toast("照片已順時針旋轉 90°");}
+    catch(e){toast(e.message);}
+  }
+  async function ensureOCR(){
+    if(window.Tesseract)return;
+    if(!ocrLoading)ocrLoading=new Promise((resolve,reject)=>{
+      const tag=document.createElement("script");tag.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      tag.onload=()=>window.Tesseract?resolve():reject(Error("OCR 函式庫載入失敗"));
+      tag.onerror=()=>reject(Error("無法下載 OCR 程式，請檢查網路"));
+      document.head.appendChild(tag);
+    }).catch(e=>{ocrLoading=null;throw e;});
+    return ocrLoading;
   }
   async function ocrPhoto(){
     if(!S.image){toast("請先上傳圖片");return;}
-    if(!window.Tesseract){status("ocrStatus","OCR 程式尚未載入，請確認網路後重新整理。",true);return;}
     const btn=$("runOcr");btn.disabled=true;let worker;
-    try{
-      status("ocrStatus","正在下載辨識模型，初次使用可能較久……");
-      worker=await Tesseract.createWorker("eng+chi_tra",1,{logger:(m)=>{if(m.status==="recognizing text")status("ocrStatus","正在辨識文字："+Math.round((m.progress||0)*100)+"%");}});
+    try {
+      status("ocrStatus","正在準備文字辨識模型（初次使用需網路）……");
+      await ensureOCR();
+      worker=await Tesseract.createWorker("eng+chi_tra",1,{logger:m=>{if(m.status==="recognizing text")status("ocrStatus","正在辨識文字："+Math.round((m.progress||0)*100)+"%");}});
       const result=await worker.recognize(S.image),recognized=(result.data.text||"").trim();
       if(!recognized){status("ocrStatus","沒有辨識到文字。請用更清晰的照片，或手動輸入。",true);return;}
       const current=$("questionText").value.trim();
       if(current&&!confirm("目前已填寫題目文字，確定要以 OCR 結果覆蓋嗎？"))return;
-      $("questionText").value=recognized;
-      status("ocrStatus","OCR 已完成。數學公式、根號、分數與圖形仍需比對原圖。");
-    }catch(e){console.error(e);status("ocrStatus","OCR 失敗，請檢查網路、裝置記憶體或改用手動輸入。",true);}
+      $("questionText").value=recognized;scheduleDraft();
+      status("ocrStatus","辨識完成。請校對分數、上下標與幾何圖形。");
+    }catch(e){console.error(e);status("ocrStatus","OCR 失敗："+(e.message||"請確認網路、記憶體後重試"),true);}
     finally{if(worker)try{await worker.terminate();}catch(e){}btn.disabled=false;}
   }
-  async function saveQuestion(ev){
+  async function copyGPTPrompt(){
+    const q=$("questionText").value.trim();
+    const prompt="請依照台灣高中學測程度分析這道題目。如果資訊不足請提醒我補上照片，不要自行補猜。請提供：①正確答案 ②逐步詳解 ③核心觀念與常見錯因 ④難度等級 Lv.1–5 與理由 ⑤一個下次遇到類似題目可套用的解題提示。請用清晰的繁體中文回覆。\\n\\n題目：\\n"+(q||"（我會另外附上原始題目照片）");
+    try{await navigator.clipboard.writeText(prompt);toast("提問模板已複製，可到 ChatGPT 貼上並附題目照片");}
+    catch(e){toast("複製失敗，請檢查剪貼簿權限");}
+  }
+  async function storageStatus(){
+    const node=$("storageState");if(!node)return;
+    if(!navigator.storage||!navigator.storage.estimate){node.textContent="目前瀏覽器無法回報可用容量，請持續每週備份。";return;}
+    try{const [estimate,persisted]=await Promise.all([navigator.storage.estimate(),typeof navigator.storage.persisted==="function"?navigator.storage.persisted():Promise.resolve(false)]);
+      const mb=n=>(Number(n||0)/1048576).toFixed(1);
+      node.textContent="本網站估計佔用 "+mb(estimate.usage)+" MB／瀏覽器配額 "+mb(estimate.quota)+" MB。持久化儲存："+(persisted?"已授予":"尚未授予或不支援")+"。仍需定期備份。";
+    }catch(e){node.textContent="無法取得儲存空間狀態；資料仍建議每週備份。";}
+  }
+  async function requestPersist(){
+    if(!navigator.storage||!navigator.storage.persist){toast("此瀏覽器不支援持久化儲存申請");return;}
+    try{const ok=await navigator.storage.persist();toast(ok?"已獲得持久化儲存權限":"瀏覽器未授予持久化權限，請持續備份");await storageStatus();}
+    catch(e){toast("目前無法申請持久化儲存");}
+  }
+    async function saveQuestion(ev){
     ev.preventDefault();
     const question=$("questionText").value.trim(),topic=$("topicField").value.trim();
     if(!question&&!S.image){toast("至少需有題目文字或圖片");return;}
@@ -217,20 +290,26 @@
   async function importBackup(file){
     if(!file)return;
     try{
-      if(file.size>200*1024*1024)throw Error("備份檔過大，請先檢查內容。");
+      if(file.size>200*1024*1024)throw Error("備份檔超過 200 MB，請先確認內容。");
       const data=JSON.parse(await file.text());
-      if(!data||data.format!=="learneasyly-backup"||!Array.isArray(data.questions)||!Array.isArray(data.reviews)||!Array.isArray(data.daily))throw Error("這不是有效的 LearnEasyly 備份。");
-      if(!confirm("匯入會「取代」目前這台裝置的所有錯題、複習與每日紀錄。請確認你已備份現有資料。"))return;
-      for(const k of ["questions","reviews","daily"])await dbRequest(k,"clear");
-      for(const q of data.questions){if(!q||typeof q.id!=="string")continue;await dbRequest("questions","put",Object.assign({},q,{image:safeImage(q.image)}));}
-      for(const r of data.reviews){if(r&&typeof r.id==="string")await dbRequest("reviews","put",r);}
-      for(const d of data.daily){if(d&&typeof d.id==="string")await dbRequest("daily","put",d);}
-      if(/^\d{4}-\d{2}-\d{2}$/.test(data.examDate||""))await dbRequest("config","put",{key:"examDate",value:data.examDate});
-      await refresh();toast("備份還原完成");
-    }catch(e){console.error(e);toast(e.message||"備份匯入失敗");}
+      if(!data||data.format!=="learneasyly-backup"||!Array.isArray(data.questions)||!Array.isArray(data.reviews)||!Array.isArray(data.daily))throw Error("不是有效的 LearnEasyly 備份檔。");
+      const ids=[["questions",data.questions],["reviews",data.reviews],["daily",data.daily]];
+      for(const [name,items] of ids){if(items.length>50000)throw Error(name+" 筆數超過合理上限。");
+        for(const item of items){if(!item||typeof item!=="object"||typeof item.id!=="string"||item.id.length>150)throw Error(name+" 資料格式有誤。");}
+      }
+      if(!confirm("將把備份合併到目前錯題本；若相同題目 ID 已存在，會以備份版本覆蓋。建議先匯出目前備份。繼續嗎？"))return;
+      const tx=S.db.transaction(["questions","reviews","daily","config"],"readwrite");
+      const done=new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error||Error("還原交易已取消"));tx.onerror=()=>reject(tx.error||Error("還原失敗"));});
+      for(const q of data.questions)tx.objectStore("questions").put({...q,image:safeImage(q.image)});
+      for(const r of data.reviews)tx.objectStore("reviews").put(r);
+      for(const d of data.daily)tx.objectStore("daily").put(d);
+      if(/^\d{4}-\d{2}-\d{2}$/.test(data.examDate||""))tx.objectStore("config").put({key:"examDate",value:data.examDate});
+      await done;
+      await refresh();toast("備份已安全合併，原有其他資料保留");await storageStatus();
+    }catch(e){console.error(e);toast(e.message||"備份匯入失敗，原資料未被預先清除");}
     finally{$("importFile").value="";}
   }
-  function wire(){
+    function wire(){
     document.addEventListener("click",async (ev)=>{
       const nav=ev.target.closest("[data-go]");if(nav){ev.preventDefault();setTab(nav.dataset.go);return;}
       const action=ev.target.closest("[data-action]");if(action){await handleAction(action);return;}
@@ -243,11 +322,16 @@
     $("takePhoto").addEventListener("click",()=>$("cameraInput").click());
     $("galleryInput").addEventListener("change",e=>loadPhoto(e.target.files[0]));
     $("cameraInput").addEventListener("change",e=>loadPhoto(e.target.files[0]));
-    $("removePhoto").addEventListener("click",()=>{S.image="";previewImage();status("ocrStatus","已移除圖片。");});
+    $("removePhoto").addEventListener("click",()=>{S.image="";previewImage();scheduleDraft();status("ocrStatus","已移除圖片。");});
     $("runOcr").addEventListener("click",ocrPhoto);
+    $("rotatePhoto").addEventListener("click",rotatePhoto);
+    $("copyGPT").addEventListener("click",copyGPTPrompt);
+    $("requestPersist").addEventListener("click",requestPersist);
+    ["questionText","answerText","solutionText","reflectionText","subjectField","topicField","sourceField","reasonField"].forEach(name=>$(name).addEventListener("input",scheduleDraft));
+    all('input[name="difficulty"]').forEach(node=>node.addEventListener("change",scheduleDraft));
     $("questionForm").addEventListener("submit",saveQuestion);
     $("cancelEdit").addEventListener("click",resetEditor);
-    ["searchInput","subjectFilter","sortFilter"].forEach(id=>$(id).addEventListener(id==="searchInput"?"input":"change",renderLibrary));
+    ["searchInput","subjectFilter","sortFilter"].forEach(id=>$(id).addEventListener(id==="searchInput"?"input":"change",()=>{S.pageSize=24;renderLibrary();}));
     $("dailyForm").addEventListener("submit",saveDaily);
     $("settingsForm").addEventListener("submit",async e=>{e.preventDefault();const value=$("examDate").value;if(!/^\d{4}-\d{2}-\d{2}$/.test(value)){toast("請選擇有效日期");return;}await dbRequest("config","put",{key:"examDate",value});await refresh();toast("目標日期已更新");});
     $("exportBackup").addEventListener("click",exportBackup);
@@ -263,7 +347,7 @@
   async function main(){
     try{
       if(!window.indexedDB)throw Error("此瀏覽器不支援 IndexedDB。");
-      S.db=await openDB();wire();await refresh();
+      S.db=await openDB();wire();await refresh();await offerDraft();
       if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("SW not available",e));
     }catch(e){
       console.error("LearnEasyly startup error",e);
