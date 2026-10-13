@@ -1,4 +1,4 @@
-name: Deploy LearnEasyly to GitHub Pages
+name: Deploy Learn Angle to GitHub Pages
 on:
   push:
     branches: [main]
@@ -23,6 +23,9 @@ jobs:
         run: |
           node --check app.js
           node --check sw.js
+          node --check scripts/update-exams.mjs
+          node --check scripts/update-admission.mjs
+          node scripts/update-exams.mjs --selftest
           node scripts/validate.cjs
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

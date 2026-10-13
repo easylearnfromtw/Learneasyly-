@@ -1,1 +1,76 @@
-{"name":"LearnEasyly｜學測百日智慧錯題本","short_name":"LearnEasyly","description":"哲愷的學測錯題整理與間隔複習工具","start_url":"./","scope":"./","display":"standalone","background_color":"#f7f8f5","theme_color":"#f7f8f5","lang":"zh-Hant","icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "稜角 Learn Angle",
+  "short_name": "稜角",
+  "description": "錯題本 讀書計時 讀書排程與學測落點預估 磨出你的稜角",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f0e6",
+  "theme_color": "#f5f0e6",
+  "lang": "zh-Hant",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "讀書計時",
+      "short_name": "計時",
+      "url": "./?go=timer",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "每日打卡",
+      "short_name": "打卡",
+      "url": "./?go=checkin",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "新增錯題",
+      "short_name": "新增",
+      "url": "./?go=add",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "今日複習",
+      "short_name": "複習",
+      "url": "./?go=review",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

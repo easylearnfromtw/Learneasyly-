@@ -1,0 +1,8 @@
+{
+  "說明": "這個檔案由人工維護 會覆蓋自動抓到的所有日期 颱風順延或官方更正時在這裡加上一筆 格式 exams 考試代號 學年度 start end time note src 考試代號 gsat 學測 ast 分科 cap 會考 tcte 統測",
+  "exams": {
+    "ast": {
+      "115": { "start": "2026-07-13", "end": "2026-07-14", "time": "08:40", "note": "巴威颱風順延", "src": "https://www.cna.com.tw/news/ahel/202607080043.aspx" }
+    }
+  }
+}

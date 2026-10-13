@@ -1,0 +1,80 @@
+name: Update exam dates and admission data
+on:
+  schedule:
+    # Every day 03:17 Taiwan time  the exam script only crawls on Mondays or when an exam is within 14 days
+    - cron: "17 19 * * *"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Force a full University TW crawl"
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "scripts/update-exams.mjs"
+      - "scripts/update-admission.mjs"
+      - "data/exam-overrides.json"
+      - ".github/workflows/update-data.yml"
+permissions:
+  contents: write
+  actions: write
+  issues: write
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install PDF reader for official announcements
+        continue-on-error: true
+        run: npm install --no-save --no-package-lock pdfjs-dist@4.10.38
+      - name: Check the date parser
+        run: node scripts/update-exams.mjs --selftest
+      - name: Update exam dates from official announcements
+        continue-on-error: true
+        env:
+          REVIEW_FILE: ${{ runner.temp }}/exam-review.md
+        run: node scripts/update-exams.mjs ${{ github.event_name != 'schedule' && '--force' || '' }}
+      - name: Ask a person to confirm unclear dates
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_FILE: ${{ runner.temp }}/exam-review.md
+        run: |
+          if [ -s "$REVIEW_FILE" ]; then
+            title="考試日期需要確認"
+            num=$(gh issue list --state open --search "$title in:title" --json number --jq '.[0].number')
+            if [ -n "$num" ]; then gh issue comment "$num" --body-file "$REVIEW_FILE"; else gh issue create --title "$title" --body-file "$REVIEW_FILE"; fi
+          fi
+      - name: Update admission data from University TW
+        continue-on-error: true
+        run: node scripts/update-admission.mjs ${{ github.event.inputs.full == 'true' && '--full' || '' }}
+      - name: Check the site still passes
+        run: node scripts/validate.cjs
+      - name: Commit updated data
+        id: commit
+        run: |
+          git config user.name "learn-angle-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Update exam dates and admission data"
+            git push
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Redeploy the site
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main

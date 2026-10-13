@@ -1,0 +1,199 @@
+{
+  "v": 2,
+  "updatedAt": "2026-10-13",
+  "checkedAt": "2026-10-13",
+  "note": "status 為 official 官方公告 provisional 暫定 estimated 依往年規則推估 exam-overrides.json 會覆蓋所有來源",
+  "exams": {
+    "gsat": {
+      "name": "學測",
+      "full": "學科能力測驗",
+      "time": "09:20",
+      "sessions": [
+        {
+          "ay": 116,
+          "status": "official",
+          "official": true,
+          "start": "2027-01-22",
+          "end": "2027-01-24",
+          "time": "09:20",
+          "timeStatus": "official",
+          "src": "https://www.ceec.edu.tw/files/file_pool/1/0q215601929252011195/116%E5%AD%B8%E5%B9%B4%E5%BA%A6%E7%B0%A1%E7%AB%A0.pdf",
+          "quote": "考試日期 116年1月22日至1月24日"
+        },
+        {
+          "ay": 117,
+          "start": "2028-01-14",
+          "end": "2028-01-16",
+          "time": "09:20",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        },
+        {
+          "ay": 118,
+          "start": "2029-01-19",
+          "end": "2029-01-21",
+          "time": "09:20",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        },
+        {
+          "ay": 119,
+          "start": "2030-01-18",
+          "end": "2030-01-20",
+          "time": "09:20",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        }
+      ]
+    },
+    "tcte": {
+      "name": "統測",
+      "full": "四技二專統一入學測驗",
+      "time": "10:20",
+      "sessions": [
+        {
+          "ay": 116,
+          "status": "official",
+          "official": true,
+          "start": "2027-04-24",
+          "end": "2027-04-25",
+          "time": "10:20",
+          "timeStatus": "provisional",
+          "src": "https://www.tcte.edu.tw/index.php?mod=TVETest%2FSelfSelectSubject",
+          "quote": "116年統測日期為116年4月24日至116年4月25日"
+        },
+        {
+          "ay": 117,
+          "start": "2028-04-29",
+          "end": "2028-04-30",
+          "time": "10:20",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        },
+        {
+          "ay": 118,
+          "start": "2029-04-28",
+          "end": "2029-04-29",
+          "time": "10:20",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        },
+        {
+          "ay": 119,
+          "start": "2030-04-27",
+          "end": "2030-04-28",
+          "time": "10:20",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        }
+      ]
+    },
+    "cap": {
+      "name": "會考",
+      "full": "國中教育會考",
+      "time": "08:30",
+      "sessions": [
+        {
+          "ay": 116,
+          "status": "official",
+          "official": true,
+          "start": "2027-05-15",
+          "end": "2027-05-16",
+          "time": "08:30",
+          "timeStatus": "provisional",
+          "src": "https://cap.rcpet.edu.tw/NEAC/ExamDescriptions/ExamInfo-1",
+          "quote": "教育部115年7月6日臺教授國部字第1155502031號函 116年5月15日至5月16日"
+        },
+        {
+          "ay": 117,
+          "start": "2028-05-20",
+          "end": "2028-05-21",
+          "time": "08:30",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        },
+        {
+          "ay": 118,
+          "start": "2029-05-19",
+          "end": "2029-05-20",
+          "time": "08:30",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        },
+        {
+          "ay": 119,
+          "start": "2030-05-18",
+          "end": "2030-05-19",
+          "time": "08:30",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        }
+      ]
+    },
+    "ast": {
+      "name": "分科測驗",
+      "full": "大學分科測驗",
+      "time": "08:40",
+      "sessions": [
+        {
+          "ay": 115,
+          "start": "2026-07-13",
+          "end": "2026-07-14",
+          "time": "08:40",
+          "status": "official",
+          "timeStatus": "official",
+          "official": true,
+          "note": "巴威颱風順延",
+          "src": "https://www.cna.com.tw/news/ahel/202607080043.aspx"
+        },
+        {
+          "ay": 116,
+          "status": "official",
+          "official": true,
+          "start": "2027-07-10",
+          "end": "2027-07-11",
+          "time": "08:40",
+          "timeStatus": "official",
+          "src": "https://www.ceec.edu.tw/files/file_pool/1/0q215601929252011195/116%E5%AD%B8%E5%B9%B4%E5%BA%A6%E7%B0%A1%E7%AB%A0.pdf",
+          "quote": "116.07.10 至 07.11 分科測驗考試"
+        },
+        {
+          "ay": 117,
+          "start": "2028-07-08",
+          "end": "2028-07-09",
+          "time": "08:40",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        },
+        {
+          "ay": 118,
+          "start": "2029-07-14",
+          "end": "2029-07-15",
+          "time": "08:40",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        },
+        {
+          "ay": 119,
+          "start": "2030-07-13",
+          "end": "2030-07-14",
+          "time": "08:40",
+          "status": "estimated",
+          "timeStatus": "estimated",
+          "official": false
+        }
+      ]
+    }
+  }
+}
