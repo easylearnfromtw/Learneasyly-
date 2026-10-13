@@ -1492,7 +1492,7 @@
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.href = url;
-    link.download = "LearnAngle-題目辨識.pdf";
+    link.download = "LearnAngle-OCR-result.pdf";
     document.body.appendChild(link);
     link.click();
     link.remove();
