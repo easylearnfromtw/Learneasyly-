@@ -1631,9 +1631,18 @@
     }
     g.strokeStyle = "#314a61"; g.lineWidth = 3;
     g.beginPath(); g.moveTo(l, top); g.lineTo(l, top + plotH); g.lineTo(l + plotW, top + plotH); g.stroke();
-    const gap = plotW / rows.length, xFor = (i) => l + gap * (i + .5);
+    const gap = plotW / rows.length;
+    const numericXs = type !== "bar" && rows.every((p) => p.name.trim() !== "" && Number.isFinite(Number(p.name)));
+    const xs = numericXs ? rows.map((p) => Number(p.name)) : [];
+    const xMin = numericXs ? Math.min(...xs) : 0, xMax = numericXs ? Math.max(...xs) : 1;
+    const xFor = (i) => numericXs && xMax !== xMin ? l + (xs[i] - xMin) / (xMax - xMin) * plotW : l + gap * (i + .5);
     g.font = "18px system-ui"; g.fillStyle = "#35495d"; g.textAlign = "center";
-    rows.forEach((p, i) => {
+    if (numericXs && xMax !== xMin) {
+      for (let i = 0; i <= 5; i++) {
+        const t = i / 5, val = xMin + (xMax - xMin) * t;
+        g.fillText(Number(val.toFixed(2)).toString(), l + plotW * t, top + plotH + 31);
+      }
+    } else rows.forEach((p, i) => {
       if (rows.length > 12 && i % Math.ceil(rows.length / 12) !== 0) return;
       const name = p.name.length > 9 ? p.name.slice(0, 8) + "…" : p.name;
       g.fillText(name, xFor(i), top + plotH + 31);
@@ -1662,8 +1671,10 @@
     g.fillText("由校正數據重製", w - 26, h - 26);
   }
   function chartPreview() {
-    const rows = chartRows($("chartData").value);
-    $("chartHint").textContent = rows ? "已讀取 " + rows.length + " 筆資料 可再對照原圖校正" : "請輸入二至四十筆資料 每行為標籤空格數值";
+    const parsed = chartRows($("chartData").value);
+    const scatterNeedsNumbers = $("chartType").value === "scatter" && parsed && parsed.some((p) => !Number.isFinite(Number(p.name)));
+    const rows = scatterNeedsNumbers ? null : parsed;
+    $("chartHint").textContent = scatterNeedsNumbers ? "散點圖橫軸必須輸入數字 請對照原圖校正" : rows ? "已讀取 " + rows.length + " 筆資料 可再對照原圖校正" : "請輸入二至四十筆資料 每行為標籤空格數值";
     $("chartHint").classList.toggle("warn", !rows);
     const canvas = $("chartCanvas");
     if (rows) paintChart(canvas, rows, $("chartType").value, $("chartTitle").value, $("chartXAxis").value, $("chartYAxis").value);
@@ -1708,7 +1719,7 @@
       figure = { id: uid(), kind: "illustration", image: CHART.crop, title: $("chartTitle").value.trim() || "圖表原圖" };
     } else {
       const rows = chartRows($("chartData").value);
-      if (!rows) { toast("請先輸入有效的圖表數據", { tone: "warn" }); return; }
+      if (!rows || ($("chartType").value === "scatter" && rows.some((p) => !Number.isFinite(Number(p.name))))) { toast("請先輸入有效的圖表數據", { tone: "warn" }); return; }
       const canvas = $("chartCanvas");
       paintChart(canvas, rows, $("chartType").value, $("chartTitle").value, $("chartXAxis").value, $("chartYAxis").value);
       figure = {
