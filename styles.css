@@ -1625,3 +1625,29 @@ body{font-synthesis:none}
 .t-ic{border-radius:9px}
 .meter i{background:var(--brand-switch)}
 .wk .wk-bar,.sbar .got{background:var(--brand-switch)}
+
+/* OCR 校對頁 把影像與可編輯結果並排 減少未校正文字直接進題庫 */
+.ocr-review{z-index:110}
+.ocr-review-sheet{width:min(1040px,96vw);max-height:min(91dvh,920px);display:flex;flex-direction:column;overflow:hidden}
+.ocr-review .sheet-bar{flex-shrink:0}
+.ocr-review-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;min-height:0;overflow:auto;padding:18px}
+.ocr-review-photo{min-width:0;display:flex;flex-direction:column;gap:9px}
+.ocr-review-label{font-size:13px;font-weight:700;color:var(--ink-2)}
+.ocr-review-photo img{display:block;max-width:100%;max-height:65dvh;object-fit:contain;object-position:top center;border-radius:14px;background:#fff;border:1px solid var(--line)}
+.ocr-review-content{min-width:0;display:flex;flex-direction:column;gap:10px}
+.ocr-review-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:13px;font-weight:700}
+.ocr-score{color:var(--ink-3);font-size:12px;font-weight:600}
+.ocr-score.warn{color:#ba611c}
+.ocr-review-content textarea{display:block;width:100%;min-height:240px;flex:1;resize:vertical;font:500 16px/1.85 var(--sans);letter-spacing:0;white-space:pre-wrap;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:14px}
+.ocr-review-content textarea:focus{outline:2px solid var(--hl-ink);outline-offset:1px}
+.ocr-review-note{font-size:12px;line-height:1.7;color:var(--ink-3)}
+.ocr-review-content .btn{align-self:flex-start}
+.ocr-review-footer{padding:14px 18px calc(14px + env(safe-area-inset-bottom));display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;border-top:1px solid var(--line);background:var(--paper)}
+@media(max-width:680px){
+  .ocr-review{padding:8px}
+  .ocr-review-sheet{width:100%;max-height:95dvh}
+  .ocr-review-body{grid-template-columns:minmax(0,1fr);gap:12px;padding:12px}
+  .ocr-review-photo img{max-height:26dvh;width:100%;object-fit:contain}
+  .ocr-review-content textarea{min-height:180px;max-height:32dvh}
+  .ocr-review-footer{padding:12px;display:grid;grid-template-columns:1fr 1fr}
+}

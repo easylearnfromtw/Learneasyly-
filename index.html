@@ -280,10 +280,12 @@
                   <button type="button" class="tool" id="zoomPhoto"><svg class="ic"><use href="#i-lens"/></svg><span>放大</span></button>
                   <button type="button" class="tool tool-quiet" id="removePhoto"><svg class="ic"><use href="#i-trash"/></svg><span>移除</span></button>
                 </div>
-                <div class="ocr-line"><div class="meter thin" id="ocrMeter" hidden><i id="ocrBar"></i></div><p id="ocrStatus" class="status-note" role="status">按轉文字後圈出題目範圍 範圍越小越快也越準</p></div>
+                <div class="ocr-line"><div class="meter thin" id="ocrMeter" hidden><i id="ocrBar"></i></div><p id="ocrStatus" class="status-note" role="status">按轉文字圈出題目 本次拍照會保留高畫質供辨識</p></div>
                 <details class="ocr-help"><summary><svg class="ic"><use href="#i-bulb"/></svg>辨識不準或跑不動時</summary>
                   <ul class="plain-list">
-                    <li>把框線縮小到題目本身 只辨識需要的部分</li>
+                    <li>拍照時盡量正對紙面 避免反光與陰影 只圈要辨識的文字</li>
+                    <li>辨識完成後先對照原圖校對 再加入錯題本</li>
+                    <li>分數 根號 指數 幾何圖與手寫公式無法保證完整辨識</li>
                     <li>iPhone 在照片裡長按題目文字 選取後拷貝 再貼到題目文字</li>
                     <li>Android 在相簿打開照片 用文字選取功能複製後貼上</li>
                     <li>題目很短時 直接打字通常最快</li>
@@ -582,7 +584,7 @@
               <ul class="plain-list">
                 <li>錯題存在目前瀏覽器的 IndexedDB 不會自動同步到其他裝置</li>
                 <li>第一次轉文字需要連網下載辨識檔案 辨識在瀏覽器裡完成</li>
-                <li>根號 上下標與幾何圖形請以原照片為準</li>
+                <li>根號 上下標與幾何圖形請以原照片為準 辨識結果需自行校對</li>
                 <li>離線時可以開啟已快取的介面 轉文字需要網路</li>
               </ul>
             </div>
@@ -776,7 +778,7 @@
     <div class="overlay-bg dark" data-close="ocr"></div>
     <div class="ocr-stage" id="ocrStage"><img id="ocrImg" alt="圈選要辨識的題目範圍"><div class="ocr-sel" id="ocrSel"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div></div>
     <div class="ocr-bar glass">
-      <p class="ocr-tip" id="ocrTip">拖曳框線圈出題目 範圍越小辨識越快</p>
+      <p class="ocr-tip" id="ocrTip">圈選文字即可辨識 數學式與上下標仍需校對</p>
       <div class="seg seg-lang" id="ocrLang" role="radiogroup" aria-label="辨識語言">
         <span class="seg-capsule" aria-hidden="true"></span>
         <button type="button" class="seg-item" data-lang="chi_tra+eng">中英</button>
@@ -786,6 +788,24 @@
       <div class="ocr-progress" id="ocrProg" hidden><div class="meter thin"><i id="ocrProgBar"></i></div><span id="ocrProgText">準備中</span></div>
       <div class="ocr-actions"><button type="button" class="btn btn-glass" id="ocrCancel">取消</button><button type="button" class="btn btn-glass" id="ocrAll">整張辨識</button><button type="button" class="btn btn-primary" id="ocrGo"><svg class="ic"><use href="#i-scan"/></svg>辨識選取範圍</button></div>
     </div>
+  </div>
+
+  <!-- OCR 校對 對照原圖後才寫入題庫 -->
+  <div class="overlay ocr-review" id="ocrReview" hidden>
+    <div class="overlay-bg" data-close="ocrreview"></div>
+    <article class="sheet ocr-review-sheet" role="dialog" aria-modal="true" aria-labelledby="ocrReviewTitle">
+      <header class="sheet-bar glass"><strong id="ocrReviewTitle">校對辨識結果</strong><button type="button" class="icon-btn" id="ocrReviewCancel" aria-label="關閉"><svg class="ic"><use href="#i-close"/></svg></button></header>
+      <div class="ocr-review-body">
+        <div class="ocr-review-photo"><div class="ocr-review-label">原始題目</div><img id="ocrReviewImg" alt="供校對的原始題目照片"></div>
+        <div class="ocr-review-content">
+          <div class="ocr-review-head"><label for="ocrReviewText">辨識文字 可以直接修改</label><span id="ocrReviewScore" class="ocr-score" role="status"></span></div>
+          <textarea id="ocrReviewText" rows="9" spellcheck="false" aria-describedby="ocrReviewHint"></textarea>
+          <p class="ocr-review-note" id="ocrReviewHint">請對照原圖檢查內容</p>
+          <button type="button" class="btn btn-quiet btn-sm" id="ocrReviewAlt" hidden>查看另一種結果</button>
+        </div>
+      </div>
+      <footer class="ocr-review-footer"><button type="button" class="btn btn-quiet" id="ocrReviewRetry">重新圈選</button><button type="button" class="btn btn-primary" id="ocrReviewApply">確認並加入題目</button></footer>
+    </article>
   </div>
 
   <!-- 圖片檢視 -->

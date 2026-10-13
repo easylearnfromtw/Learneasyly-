@@ -1184,7 +1184,7 @@
     $("cancelEdit").textContent = isNew ? "捨棄這一題" : editing ? "復原這次修改" : "清空重來";
   }
   function fillEditor(d) {
-    S.image = safeImage(d.image); previewImage();
+    releaseOcrSource(); S.image = safeImage(d.image); previewImage();
     $("questionText").value = d.question || ""; $("answerText").value = d.answer || ""; $("solutionText").value = d.solution || "";
     $("reflectionText").value = d.reflection || ""; $("topicField").value = d.topic || ""; $("sourceField").value = d.source || "";
     setRadio("subject", d.subject || firstSubject()); setRadio("reason", d.reason || "觀念不清"); setRadio("difficulty", Number(d.difficulty) || 3);
@@ -1213,11 +1213,11 @@
     clearTimeout(saveTimer); saveTimer = null; savePending = false;
     if (S.db) { dbRequest("config", "delete", "editorDraft").catch(() => {}); dbRequest("config", "delete", "editorSession").catch(() => {}); }
     delete S.cfg.editorDraft; delete S.cfg.editorSession;
-    $("questionForm").reset(); S.image = ""; S.editing = null; S.autoNew = null; S.editOriginal = null; previewImage();
+    releaseOcrSource(); $("questionForm").reset(); S.image = ""; S.editing = null; S.autoNew = null; S.editOriginal = null; previewImage();
     lastSig = ""; S.savedAt = null;
     setRadio("subject", firstSubject()); setRadio("reason", "觀念不清"); setRadio("difficulty", 3);
     setEditorMode(false); updateLevel(); updateTopics(); updateComplete();
-    status("ocrStatus", "按轉文字後圈出題目範圍 範圍越小越快也越準"); status("saveStatus", "");
+    status("ocrStatus", OCR_DEFAULT_STATUS); status("saveStatus", "");
     $("ocrMeter").hidden = true; $("galleryInput").value = ""; $("cameraInput").value = "";
     if (UI.level) UI.level.sync();
     setSaveState("idle");
@@ -1250,7 +1250,7 @@
       url = URL.createObjectURL(file);
       const img = new Image();
       await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error("decode")); img.src = url; });
-      S.image = processedImage(img); previewImage(); scheduleDraft();
+      releaseOcrSource(); S.image = processedImage(img); rememberOcrSource(img); previewImage(); scheduleDraft();
       status("ocrStatus", "圖片已加入並自動儲存 可以按轉文字圈選題目辨識");
       FX.haptic(8);
     } catch (e) { status("ocrStatus", "這張圖片無法讀取 請改用 JPG 或 PNG", true); }
@@ -1261,15 +1261,48 @@
     const img = new Image();
     try {
       await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error("rotate")); img.src = S.image; });
-      S.image = processedImage(img, 90); previewImage(); scheduleDraft();
+      const previousSource = OCR.source;
+      const rotated = previousSource ? document.createElement("canvas") : null;
+      if (rotated) {
+        rotated.width = previousSource.height; rotated.height = previousSource.width;
+        const g = rotated.getContext("2d");
+        g.translate(rotated.width / 2, rotated.height / 2); g.rotate(Math.PI / 2);
+        g.drawImage(previousSource, -previousSource.width / 2, -previousSource.height / 2);
+      }
+      S.image = processedImage(img, 90);
+      releaseOcrSource();
+      if (rotated) { OCR.source = rotated; OCR.sourceReady = true; }
+      previewImage(); scheduleDraft();
     } catch (e) { toast("無法旋轉這張照片", { tone: "warn" }); }
   }
-  /* 文字辨識
-     使用 Tesseract 的快速語言資料 先圈選範圍並做灰階與對比處理
-     辨識器保留重複使用 閒置三分鐘後釋放記憶體 */
-  const OCR_FAST = "https://cdn.jsdelivr.net/gh/tesseract-ocr/tessdata_fast@4.1.0";
-  const OCR = { rect: { x: 0.04, y: 0.04, w: 0.92, h: 0.92 }, lang: "", worker: null, wLang: "", running: false, token: 0, idle: null, last: 0, watch: null, preloading: null, ready: false, mstate: "idle", mpct: 0, statusText: "" };
+  /* 高精度文字辨識 只在目前編輯工作階段保留高畫質來源
+     題庫仍存縮圖 避免 IndexedDB 配額被原始照片填滿
+     Tesseract 預設精度模型在瀏覽器本機執行 不上傳照片 */
+  const OCR = {
+    rect: { x: 0.04, y: 0.04, w: 0.92, h: 0.92 }, lang: "",
+    worker: null, wLang: "", running: false, token: 0, idle: null,
+    last: 0, watch: null, preloading: null, ready: false,
+    mstate: "idle", mpct: 0, statusText: "",
+    source: null, sourceReady: false, candidates: [], selected: 0
+  };
   let ocrLoading = null;
+  function releaseOcrSource() {
+    if (OCR.source) { OCR.source.width = 0; OCR.source.height = 0; }
+    OCR.source = null; OCR.sourceReady = false;
+  }
+  function rememberOcrSource(img) {
+    const limit = S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2600 : 3400;
+    const scale = Math.min(1, limit / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    const g = canvas.getContext("2d");
+    if (!g) return;
+    g.fillStyle = "#fff"; g.fillRect(0, 0, canvas.width, canvas.height);
+    g.imageSmoothingQuality = "high";
+    g.drawImage(img, 0, 0, canvas.width, canvas.height);
+    OCR.source = canvas; OCR.sourceReady = true;
+  }
   function ensureOCR() {
     if (window.Tesseract) return Promise.resolve();
     if (!ocrLoading) ocrLoading = new Promise((resolve, reject) => {
@@ -1281,12 +1314,12 @@
     }).catch((e) => { ocrLoading = null; throw e; });
     return ocrLoading;
   }
-  const langForSubject = (sub) => (sub === "英文" ? "eng" : ["國文", "歷史", "地理", "公民"].includes(sub) ? "chi_tra" : "chi_tra+eng");
+  const langForSubject = (sub) => (["英文", "英語"].includes(sub) ? "eng" : "chi_tra+eng");
   function ocrProgress(m) {
     OCR.last = Date.now();
     const steps = {
       "loading tesseract core": ["下載辨識程式", 2, 14], "initializing tesseract": ["啟動辨識程式", 14, 18],
-      "loading language traineddata": ["下載語言資料", 18, 42], "loading language traineddata (from cache)": ["讀取語言資料", 18, 42],
+      "loading language traineddata": ["下載精準語言模型", 18, 42], "loading language traineddata (from cache)": ["讀取語言資料", 18, 42],
       "initializing api": ["準備辨識", 42, 48], "recognizing text": ["辨識中", 48, 100]
     };
     const st = steps[m.status]; if (!st) return;
@@ -1299,14 +1332,13 @@
     const w = OCR.worker; OCR.worker = null; OCR.wLang = "";
     if (w) { try { await w.terminate(); } catch (e) {} }
   }
-  /* 背景預先下載 中文與英文辨識檔案
-     下載後語言資料存在瀏覽器的 IndexedDB 程式檔由 Service Worker 快取 之後轉文字不用再等下載 */
-  const OCR_DEFAULT_STATUS = "按轉文字後圈出題目範圍 範圍越小越快也越準";
+  const OCR_DEFAULT_STATUS = "按轉文字圈出題目 本次拍照會保留高畫質供辨識";
   function ocrModelUI(state, pct) {
     OCR.mstate = state; OCR.mpct = pct || 0;
     const texts = {
-      ready: "已下載完成 轉文字可以直接開始", downloading: "背景下載中 " + Math.round(OCR.mpct) + "%", idle: "尚未下載 第一次轉文字時會自動下載",
-      failed: "下載沒有完成 連上網路後可以再試一次", offline: "目前沒有網路 連線後會再下載", saver: "省流量模式開啟中 需要時可以手動下載"
+      ready: "高精度模型已下載 可直接辨識", downloading: "高精度模型下載中 " + Math.round(OCR.mpct) + "%",
+      idle: "尚未下載高精度模型 首次使用會自動下載",
+      failed: "模型下載失敗 請連網重試", offline: "目前沒有網路 連線後再下載", saver: "省流量模式開啟中 可手動下載"
     };
     $("ocrModelState").textContent = texts[state] || "";
     $("ocrModelBar").style.width = (state === "ready" ? 100 : state === "downloading" ? OCR.mpct : 0) + "%";
@@ -1314,7 +1346,7 @@
     $("ocrModelBtnText").textContent = state === "ready" ? "重新檢查檔案" : state === "downloading" ? "下載中" : "立即下載";
     const st = $("ocrStatus");
     if (!OCR.running && (st.textContent === OCR_DEFAULT_STATUS || st.textContent === OCR.statusText)) {
-      const line = state === "ready" ? "辨識檔案已備妥 按轉文字圈出題目就能辨識" : state === "downloading" ? "辨識檔案正在背景下載 " + Math.round(OCR.mpct) + "%" : OCR_DEFAULT_STATUS;
+      const line = state === "ready" ? "高精度模型已備妥 可圈選題目辨識" : state === "downloading" ? "高精度模型下載中 " + Math.round(OCR.mpct) + "%" : OCR_DEFAULT_STATUS;
       st.textContent = line; st.classList.remove("error"); OCR.statusText = line;
     }
   }
@@ -1338,9 +1370,9 @@
           const r = span[m.status]; if (r) ocrModelUI("downloading", r[0] + (r[1] - r[0]) * Math.max(0, Math.min(1, Number(m.progress) || 0)));
           if (OCR.running) ocrProgress(m);
         };
-        try { w = await Tesseract.createWorker("chi_tra+eng", 1, { langPath: OCR_FAST, gzip: false, logger }); }
-        catch (e) { w = await Tesseract.createWorker("chi_tra+eng", 1, { logger }); }
-        OCR.ready = true; localStorageSet("learneasyly-ocr-ready", "1"); ocrModelUI("ready");
+        // Tesseract 預設語言模型以準確率為優先 不再強制使用 tessdata_fast
+        w = await Tesseract.createWorker("chi_tra+eng", 1, { logger });
+        OCR.ready = true; localStorageSet("learneasyly-ocr-quality-v1", "1"); ocrModelUI("ready");
         const keep = S.tab === "add" || !$("ocrSheet").hidden;
         if (keep && !OCR.worker) {
           OCR.worker = w; OCR.wLang = "chi_tra+eng"; w = null;
@@ -1352,7 +1384,7 @@
     return OCR.preloading;
   }
   function scheduleOcrPrefetch() {
-    OCR.ready = localStorageGet("learneasyly-ocr-ready") === "1";
+    OCR.ready = localStorageGet("learneasyly-ocr-quality-v1") === "1";
     ocrModelUI(OCR.ready ? "ready" : "idle");
     if (OCR.ready || !cfg("ocrPrefetch", true) || S.lite) return;
     const go = () => { if (document.visibilityState === "visible" && !OCR.ready) preloadOCR(false); };
@@ -1363,37 +1395,86 @@
     await ensureOCR();
     if (OCR.worker && OCR.wLang === lang) return OCR.worker;
     await dropWorker();
-    const logger = (m) => ocrProgress(m);
-    try { OCR.worker = await Tesseract.createWorker(lang, 1, { langPath: OCR_FAST, gzip: false, logger }); }
-    catch (e) { console.warn("fast model unavailable", e); OCR.worker = await Tesseract.createWorker(lang, 1, { logger }); }
+    OCR.worker = await Tesseract.createWorker(lang, 1, { logger: (m) => ocrProgress(m) });
     OCR.wLang = lang;
+    OCR.ready = true; localStorageSet("learneasyly-ocr-quality-v1", "1");
     return OCR.worker;
   }
-  function prepForOCR(img, r) {
-    const W = img.naturalWidth, H = img.naturalHeight;
-    const sx = Math.round(r.x * W), sy = Math.round(r.y * H), sw = Math.max(8, Math.round(r.w * W)), sh = Math.max(8, Math.round(r.h * H));
+  function prepForOCR(img, r, variant) {
+    const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+    const sx = Math.max(0, Math.round(r.x * W)), sy = Math.max(0, Math.round(r.y * H));
+    const sw = Math.max(8, Math.min(W - sx, Math.round(r.w * W)));
+    const sh = Math.max(8, Math.min(H - sy, Math.round(r.h * H)));
     const longest = Math.max(sw, sh);
-    let scale = Math.min(2.2, 1700 / longest);
-    if (longest * scale < 1100) scale = Math.min(2.6, 1100 / longest);
-    const cw = Math.round(sw * scale), ch = Math.round(sh * scale);
+    const scale = Math.min(2.5, 2600 / longest);
+    const cw = Math.max(8, Math.round(sw * scale)), ch = Math.max(8, Math.round(sh * scale));
     const c = document.createElement("canvas"); c.width = cw; c.height = ch;
     const g = c.getContext("2d", { willReadFrequently: true });
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
     g.fillStyle = "#fff"; g.fillRect(0, 0, cw, ch);
     g.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
-    const data = g.getImageData(0, 0, cw, ch), d = data.data, hist = new Uint32Array(256);
-    for (let i = 0; i < d.length; i += 4) { const y = (d[i] * 299 + d[i + 1] * 587 + d[i + 2] * 114) / 1000 | 0; d[i] = y; hist[y]++; }
-    const total = cw * ch; let lo = 0, hi = 255, acc = 0;
-    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > total * 0.01) { lo = v; break; } }
-    acc = 0; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > total * 0.01) { hi = v; break; } }
-    const span = Math.max(40, hi - lo);
-    for (let i = 0; i < d.length; i += 4) { const y = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span)); d[i] = d[i + 1] = d[i + 2] = y; d[i + 3] = 255; }
+    const data = g.getImageData(0, 0, cw, ch), d = data.data;
+    const hist = new Uint32Array(256), gray = new Uint8Array(cw * ch);
+    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+      const v = Math.round(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+      gray[p] = v; hist[v]++;
+    }
+    if (variant === "adaptive") {
+      // 區域自適應二值化 改善陰影及紙張泛黃 只在低可信度時啟用
+      const stride = cw + 1, integral = new Uint32Array(stride * (ch + 1));
+      for (let y = 0; y < ch; y++) {
+        let sum = 0;
+        for (let x = 0; x < cw; x++) {
+          sum += gray[y * cw + x];
+          integral[(y + 1) * stride + x + 1] = integral[y * stride + x + 1] + sum;
+        }
+      }
+      const rad = Math.max(12, Math.min(45, Math.round(Math.min(cw, ch) / 45)));
+      for (let y = 0; y < ch; y++) {
+        const y0 = Math.max(0, y - rad), y1 = Math.min(ch, y + rad + 1);
+        for (let x = 0; x < cw; x++) {
+          const x0 = Math.max(0, x - rad), x1 = Math.min(cw, x + rad + 1);
+          const area = (x1 - x0) * (y1 - y0);
+          const mean = (integral[y1 * stride + x1] - integral[y0 * stride + x1] - integral[y1 * stride + x0] + integral[y0 * stride + x0]) / area;
+          const value = gray[y * cw + x] < mean - 10 ? 0 : 255;
+          const i = (y * cw + x) * 4;
+          d[i] = d[i + 1] = d[i + 2] = value; d[i + 3] = 255;
+        }
+      }
+    } else {
+      let lo = 0, hi = 255, acc = 0, total = cw * ch;
+      for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > total * 0.005) { lo = v; break; } }
+      acc = 0;
+      for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > total * 0.005) { hi = v; break; } }
+      const span = Math.max(70, hi - lo), strength = 0.83;
+      for (let p = 0; p < gray.length; p++) {
+        const raw = gray[p], adjusted = Math.max(0, Math.min(255, (raw - lo) * 255 / span));
+        const v = Math.round(raw * (1 - strength) + adjusted * strength), i = p * 4;
+        d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255;
+      }
+    }
     g.putImageData(data, 0, 0);
     return c;
   }
   const cleanOCR = (t) => String(t || "").replace(/\r/g, "")
     .replace(/([㐀-鿿　-〿＀-￯])[ \t]+(?=[㐀-鿿　-〿＀-￯])/g, "$1")
     .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  function ocrQuality(result) {
+    const text = cleanOCR(result && result.data && result.data.text);
+    const raw = Number(result && result.data && result.data.confidence);
+    const confidence = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
+    const junk = (text.match(/[□�]/g) || []).length;
+    return { text, confidence, score: confidence + Math.min(8, text.length / 12) - junk * 6 };
+  }
+  function ocrPhotoPreview(img, r) {
+    const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
+    const x = r.x * W, y = r.y * H, w = Math.max(1, r.w * W), h = Math.max(1, r.h * H);
+    const scale = Math.min(1, 1100 / Math.max(w, h));
+    const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+    const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(img, x, y, w, h, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.82);
+  }
   function layoutSel() {
     const r = OCR.rect, sel = $("ocrSel");
     sel.style.left = r.x * 100 + "%"; sel.style.top = r.y * 100 + "%"; sel.style.width = r.w * 100 + "%"; sel.style.height = r.h * 100 + "%";
@@ -1409,7 +1490,7 @@
     OCR.lang = langForSubject(radioVal("subject", ""));
     all("#ocrLang .seg-item").forEach((b) => b.classList.toggle("active", b.dataset.lang === OCR.lang));
     const tip = $("ocrTip"); tip.classList.remove("warn");
-    tip.textContent = (S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3)) ? "這台裝置效能較低 請盡量只圈題目本身 會快很多" : "拖曳框線圈出題目 範圍越小辨識越快";
+    tip.textContent = (S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3)) ? "請圈選題目文字 小範圍辨識更省記憶體" : "圈選文字即可辨識 數學式與上下標仍需校對";
     $("ocrImg").src = S.image; layoutSel(); setOcrBusy(false);
     openOverlay($("ocrSheet"));
     $("ocrSheet")._onClose = () => { if (OCR.running) stopOcr(true); };
@@ -1419,7 +1500,31 @@
     OCR.token++; OCR.running = false; clearInterval(OCR.watch);
     dropWorker();
     setOcrBusy(false);
-    if (!silent) { $("ocrTip").textContent = "已停止辨識 可以縮小範圍再試一次"; }
+    if (!silent) $("ocrTip").textContent = "已停止辨識 可以重新圈選範圍";
+  }
+  function showOcrResult(candidates, originalPreview) {
+    OCR.candidates = candidates;
+    OCR.selected = candidates.length > 1 && candidates[1].score > candidates[0].score + 4 ? 1 : 0;
+    $("ocrReviewImg").src = originalPreview;
+    setOcrCandidate(OCR.selected);
+    $("ocrReviewAlt").hidden = candidates.length < 2;
+    openOverlay($("ocrReview"));
+    $("ocrReview")._onClose = () => {
+      $("ocrReviewImg").removeAttribute("src"); OCR.candidates = [];
+    };
+    setTimeout(() => $("ocrReviewText").focus({ preventScroll: true }), 70);
+  }
+  function setOcrCandidate(index) {
+    const c = OCR.candidates[index]; if (!c) return;
+    OCR.selected = index;
+    $("ocrReviewText").value = c.text;
+    const warning = c.confidence < 80 || /數學/.test(radioVal("subject", ""));
+    $("ocrReviewScore").textContent = "辨識參考值 " + Math.round(c.confidence) + " 分";
+    $("ocrReviewScore").classList.toggle("warn", warning);
+    $("ocrReviewHint").textContent = warning
+      ? "請逐字比對原圖 尤其是數字 正負號 分數 根號與上下標 辨識分數不代表正確率"
+      : "請對照原圖檢查內容 文字辨識仍有可能漏字或認錯";
+    $("ocrReviewAlt").textContent = index === 0 ? "查看另一種結果" : "返回原先結果";
   }
   async function runOcr(full) {
     if (OCR.running || !S.image) return;
@@ -1427,42 +1532,70 @@
     OCR.running = true; OCR.last = Date.now();
     setOcrBusy(true); $("ocrProgBar").style.width = "2%"; $("ocrProgText").textContent = "準備中";
     const tip = $("ocrTip"); tip.classList.remove("warn");
-    tip.textContent = OCR.worker && OCR.wLang === OCR.lang ? "辨識中 請稍候" : "第一次使用會下載辨識檔案 之後會快很多";
+    tip.textContent = OCR.worker && OCR.wLang === OCR.lang ? "正在以高精度模型辨識" : "首次使用需下載高精度模型 檔案較大";
     OCR.watch = setInterval(() => {
-      if (Date.now() - OCR.last > 25000) { tip.classList.add("warn"); tip.textContent = "這台裝置跑得比較吃力 可以停止後縮小範圍 或改用手機內建的文字辨識"; }
+      if (Date.now() - OCR.last > 25000) { tip.classList.add("warn"); tip.textContent = "辨識需要較多運算 請稍候 或停止後縮小選取範圍"; }
     }, 4000);
     try {
-      const img = new Image();
-      await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("img")); img.src = S.image; });
-      const canvas = prepForOCR(img, full ? { x: 0, y: 0, w: 1, h: 1 } : OCR.rect);
+      let img = OCR.sourceReady ? OCR.source : null;
+      if (!img) {
+        img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("img")); img.src = S.image; });
+      }
+      const r = full ? { x: 0, y: 0, w: 1, h: 1 } : OCR.rect;
+      const originalPreview = ocrPhotoPreview(img, r);
+      const canvas = prepForOCR(img, r, "balanced");
       const w = await getWorker(OCR.lang);
       if (token !== OCR.token) return;
       await w.setParameters({ tessedit_pageseg_mode: full ? "3" : "6", preserve_interword_spaces: "1" });
-      const res = await w.recognize(canvas);
+      const primary = ocrQuality(await w.recognize(canvas));
       if (token !== OCR.token) return;
-      const text = cleanOCR(res.data && res.data.text);
+      const candidates = [primary];
+      const isMath = /數學/.test(radioVal("subject", ""));
+      const lowQuality = primary.confidence < 82 || primary.text.length < 8;
+      const lowMemory = S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3);
+      if ((lowQuality || isMath) && !lowMemory) {
+        OCR.last = Date.now();
+        tip.textContent = "正在嘗試另一種影像處理方式";
+        $("ocrProgText").textContent = "加強辨識中";
+        try {
+          const alt = prepForOCR(img, r, "adaptive");
+          await w.setParameters({ tessedit_pageseg_mode: full ? "11" : "11", preserve_interword_spaces: "1" });
+          const second = ocrQuality(await w.recognize(alt));
+          if (token !== OCR.token) return;
+          if (second.text && second.text !== primary.text) candidates.push(second);
+        } catch (err) { console.warn("ocr alternative", err); }
+      }
       OCR.running = false; clearInterval(OCR.watch); setOcrBusy(false);
-      if (!text) { tip.classList.add("warn"); tip.textContent = "沒有辨識到文字 換一張清楚的照片 或調整框線再試"; return; }
+      if (!candidates.some((x) => x.text)) { tip.classList.add("warn"); tip.textContent = "沒有辨識到文字 請調整圈選範圍 或用清晰照片再試"; return; }
       closeOverlay($("ocrSheet"));
-      const current = $("questionText").value.trim();
-      let replace = true;
-      if (current) await new Promise((r) => whenSettled(r));
-      if (current) replace = await ask({ title: "要怎麼放入辨識結果", body: "題目文字已經有內容 可以取代 或接在原本文字後面", ok: "取代原本文字", cancel: "接在後面", icon: "i-scan" });
-      $("questionText").value = replace || !current ? text : current + "\n" + text;
-      scheduleDraft();
-      status("ocrStatus", "辨識完成 已自動儲存 請再校對分數 上下標與幾何圖形");
-      toast("辨識完成 記得校對一下", { icon: "i-scan" });
-      FX.haptic(10);
+      await new Promise((resolve) => whenSettled(resolve));
+      if (token !== OCR.token) return;
+      showOcrResult(candidates.filter((x) => x.text), originalPreview);
     } catch (e) {
       if (token !== OCR.token) return;
       console.error(e);
       OCR.running = false; clearInterval(OCR.watch); setOcrBusy(false); dropWorker();
       tip.classList.add("warn");
-      tip.textContent = navigator.onLine === false ? "目前沒有網路 第一次辨識需要下載辨識檔案 也可以改用手機內建的文字辨識" : "辨識程式無法啟動 可以改用手機內建的文字辨識 或請 ChatGPT 逐字寫出題目";
+      tip.textContent = navigator.onLine === false ? "離線尚未備妥語言模型 請連網後重試" : "辨識程式無法啟動 請重試 或使用手機內建選取文字";
     } finally {
       clearTimeout(OCR.idle);
       OCR.idle = setTimeout(() => { if (!OCR.running) dropWorker(); }, 180000);
     }
+  }
+  async function applyOcrReview() {
+    const text = cleanOCR($("ocrReviewText").value);
+    if (!text) { toast("請先輸入或校正辨識文字", { tone: "warn" }); $("ocrReviewText").focus(); return; }
+    const current = $("questionText").value.trim();
+    closeOverlay($("ocrReview"));
+    await new Promise((resolve) => whenSettled(resolve));
+    let replace = true;
+    if (current) replace = await ask({ title: "要怎麼放入辨識結果", body: "題目已經有內容 你可以取代原本文字 或接在後面", ok: "取代原本文字", cancel: "接在後面", icon: "i-scan" });
+    $("questionText").value = replace || !current ? text : current + "\n" + text;
+    scheduleDraft();
+    status("ocrStatus", "已確認辨識內容並自動儲存 數學符號請再對照原圖");
+    toast("已加入題目文字", { icon: "i-scan" });
+    FX.haptic(10);
   }
   function wireOcr() {
     const stage = $("ocrStage"), sel = $("ocrSel");
@@ -1506,6 +1639,13 @@
     $("ocrGo").addEventListener("click", () => runOcr(false));
     $("ocrAll").addEventListener("click", () => runOcr(true));
     $("ocrCancel").addEventListener("click", () => { if (OCR.running) stopOcr(false); else closeOverlay($("ocrSheet")); });
+    $("ocrReviewCancel").addEventListener("click", () => closeOverlay($("ocrReview")));
+    $("ocrReviewApply").addEventListener("click", applyOcrReview);
+    $("ocrReviewAlt").addEventListener("click", () => setOcrCandidate(OCR.selected === 0 ? 1 : 0));
+    $("ocrReviewRetry").addEventListener("click", () => {
+      closeOverlay($("ocrReview"));
+      whenSettled(() => openOcr());
+    });
     $("ocrLang").addEventListener("click", (e) => {
       const b = e.target.closest("[data-lang]"); if (!b || OCR.running) return;
       OCR.lang = b.dataset.lang;
@@ -2668,7 +2808,7 @@
     $("takePhoto").addEventListener("click", () => $("cameraInput").click());
     $("galleryInput").addEventListener("change", (e) => loadPhoto(e.target.files[0]));
     $("cameraInput").addEventListener("change", (e) => loadPhoto(e.target.files[0]));
-    $("removePhoto").addEventListener("click", () => { if (!S.image) return; S.image = ""; previewImage(); scheduleDraft(); status("ocrStatus", "已移除圖片"); });
+    $("removePhoto").addEventListener("click", () => { if (!S.image) return; releaseOcrSource(); S.image = ""; previewImage(); scheduleDraft(); status("ocrStatus", "已移除圖片"); });
     $("runOcr").addEventListener("click", openOcr);
     wireOcr();
     $("rotatePhoto").addEventListener("click", rotatePhoto);
