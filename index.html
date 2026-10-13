@@ -802,6 +802,11 @@
           <textarea id="ocrReviewText" rows="9" spellcheck="false" aria-describedby="ocrReviewHint"></textarea>
           <p class="ocr-review-note" id="ocrReviewHint">請對照原圖檢查內容</p>
           <button type="button" class="btn btn-quiet btn-sm" id="ocrReviewAlt" hidden>查看另一種結果</button>
+          <div class="ocr-review-tools" aria-label="OCR 文字與 PDF 操作">
+            <button type="button" class="btn btn-ghost btn-sm" id="ocrReviewCopy"><svg class="ic"><use href="#i-copy"/></svg>複製文字</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="ocrReviewPdf" disabled><svg class="ic"><use href="#i-download"/></svg>下載 OCR 原始 PDF</button>
+          </div>
+          <p class="ocr-review-note">PDF 在裝置內自動產生可搜尋文字層 不使用 GPT API 人工校對後的修改不會自動寫回 PDF</p>
         </div>
       </div>
       <footer class="ocr-review-footer"><button type="button" class="btn btn-quiet" id="ocrReviewRetry">重新圈選</button><button type="button" class="btn btn-primary" id="ocrReviewApply">確認並加入題目</button></footer>

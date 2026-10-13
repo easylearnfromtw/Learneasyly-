@@ -1466,6 +1466,58 @@
     const junk = (text.match(/[□�]/g) || []).length;
     return { text, confidence, score: confidence + Math.min(8, text.length / 12) - junk * 6 };
   }
+  // Searchable PDFs are produced by the same on-device OCR pass.
+  // Wrapping an image in PDF format cannot improve recognition accuracy.
+  async function recognizeWithSearchablePdf(worker, canvas) {
+    let result;
+    try {
+      result = await worker.recognize(canvas, { pdfTitle: "Learn Angle 題目辨識" }, { pdf: true });
+    } catch (err) {
+      console.warn("searchable PDF unavailable; keep the regular OCR result", err);
+      result = await worker.recognize(canvas);
+    }
+    const recognized = ocrQuality(result);
+    const bytes = result && result.data && result.data.pdf;
+    recognized.pdf = bytes && bytes.length ? bytes : null;
+    return recognized;
+  }
+  function downloadableOcrPdf() {
+    const selected = OCR.candidates[OCR.selected];
+    if (!selected || !selected.pdf || !selected.pdf.length) {
+      toast("本次未產生可搜尋 PDF 可先複製辨識文字", { tone: "warn" });
+      return;
+    }
+    const data = new Uint8Array(selected.pdf);
+    const blob = new Blob([data], { type: "application/pdf" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.download = "LearnAngle-題目辨識.pdf";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast("已準備 OCR 原始 PDF 文字仍需校對");
+  }
+  async function copyOcrReviewText() {
+    const value = $("ocrReviewText").value;
+    if (!value.trim()) { toast("目前沒有可複製的文字", { tone: "warn" }); return; }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const field = $("ocrReviewText");
+        field.focus();
+        field.select();
+        if (!document.execCommand("copy")) throw new Error("copy unsupported");
+      }
+      toast("已複製辨識文字 可直接貼到題目欄位");
+    } catch (e) {
+      $("ocrReviewText").focus();
+      $("ocrReviewText").select();
+      toast("請長按文字選擇複製", { tone: "warn" });
+    }
+  }
   function ocrPhotoPreview(img, r) {
     const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
     const x = r.x * W, y = r.y * H, w = Math.max(1, r.w * W), h = Math.max(1, r.h * H);
@@ -1525,6 +1577,8 @@
       ? "請逐字比對原圖 尤其是數字 正負號 分數 根號與上下標 辨識分數不代表正確率"
       : "請對照原圖檢查內容 文字辨識仍有可能漏字或認錯";
     $("ocrReviewAlt").textContent = index === 0 ? "查看另一種結果" : "返回原先結果";
+    $("ocrReviewPdf").disabled = !(c.pdf && c.pdf.length);
+    $("ocrReviewPdf").title = c.pdf ? "下載 OCR 產生的原始可搜尋 PDF" : "本次未產生 PDF";
   }
   async function runOcr(full) {
     if (OCR.running || !S.image) return;
@@ -1548,7 +1602,7 @@
       const w = await getWorker(OCR.lang);
       if (token !== OCR.token) return;
       await w.setParameters({ tessedit_pageseg_mode: full ? "3" : "6", preserve_interword_spaces: "1" });
-      const primary = ocrQuality(await w.recognize(canvas));
+      const primary = await recognizeWithSearchablePdf(w, canvas);
       if (token !== OCR.token) return;
       const candidates = [primary];
       const isMath = /數學/.test(radioVal("subject", ""));
@@ -1561,7 +1615,7 @@
         try {
           const alt = prepForOCR(img, r, "adaptive");
           await w.setParameters({ tessedit_pageseg_mode: full ? "11" : "11", preserve_interword_spaces: "1" });
-          const second = ocrQuality(await w.recognize(alt));
+          const second = await recognizeWithSearchablePdf(w, alt);
           if (token !== OCR.token) return;
           if (second.text && second.text !== primary.text) candidates.push(second);
         } catch (err) { console.warn("ocr alternative", err); }
@@ -1641,6 +1695,8 @@
     $("ocrCancel").addEventListener("click", () => { if (OCR.running) stopOcr(false); else closeOverlay($("ocrSheet")); });
     $("ocrReviewCancel").addEventListener("click", () => closeOverlay($("ocrReview")));
     $("ocrReviewApply").addEventListener("click", applyOcrReview);
+    $("ocrReviewCopy").addEventListener("click", copyOcrReviewText);
+    $("ocrReviewPdf").addEventListener("click", downloadableOcrPdf);
     $("ocrReviewAlt").addEventListener("click", () => setOcrCandidate(OCR.selected === 0 ? 1 : 0));
     $("ocrReviewRetry").addEventListener("click", () => {
       closeOverlay($("ocrReview"));

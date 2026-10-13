@@ -1642,6 +1642,9 @@ body{font-synthesis:none}
 .ocr-review-content textarea:focus{outline:2px solid var(--hl-ink);outline-offset:1px}
 .ocr-review-note{font-size:12px;line-height:1.7;color:var(--ink-3)}
 .ocr-review-content .btn{align-self:flex-start}
+.ocr-review-tools{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.ocr-review-tools .btn{display:inline-flex;align-items:center;gap:6px}
+.ocr-review-tools .btn:disabled{opacity:.45;cursor:not-allowed}
 .ocr-review-footer{padding:14px 18px calc(14px + env(safe-area-inset-bottom));display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;border-top:1px solid var(--line);background:var(--paper)}
 @media(max-width:680px){
   .ocr-review{padding:8px}
