@@ -131,7 +131,7 @@
   const S = {
     db: null, questions: [], reviews: [], daily: [], cfg: {},
     examDate: DEFAULT_DATE, nickname: "", goal: 8, theme: "auto", effects: true, haptics: true, achievements: null,
-    image: "", editing: null, reviewing: null, revealed: false, tab: "overview", pageSize: 24,
+    image: "", visuals: [], editing: null, reviewing: null, revealed: false, tab: "overview", pageSize: 24,
     libStatus: "all", libSubject: "", reviewSubject: "", skipped: new Set(),
     session: { done: 0, good: 0, combo: 0, best: 0 }, modalList: [], modalIndex: -1,
     cheer: -1, ignorePop: 0, flashId: null,
@@ -146,6 +146,26 @@
   const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (x) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[x]));
   const safeImage = (s) => (typeof s === "string" && /^data:image\/(png|jpeg|webp);base64,/i.test(s) ? s : "");
+  const normalizedVisuals = (arr) => Array.isArray(arr) ? arr.slice(0, 12).map((v) => ({
+    id: String(v && v.id || uid()).slice(0, 100),
+    kind: v && v.kind === "chart" ? "chart" : "illustration",
+    image: safeImage(v && v.image),
+    original: safeImage(v && v.original),
+    title: String(v && v.title || "").slice(0, 80),
+    chartType: ["line", "bar", "scatter"].includes(v && v.chartType) ? v.chartType : "line",
+    xAxis: String(v && v.xAxis || "").slice(0, 40),
+    yAxis: String(v && v.yAxis || "").slice(0, 40),
+    chartData: String(v && v.chartData || "").slice(0, 2500)
+  })).filter((v) => v.image) : [];
+  function visualHTML(q) {
+    const list = normalizedVisuals(q && q.visuals);
+    if (!list.length) return "";
+    return '<div class="visual-read"><h3>圖像區塊</h3><div class="visual-read-grid">' + list.map((v) =>
+      '<figure class="visual-read-item"><img src="' + v.image + '" alt="' + esc(v.kind === "chart" ? "重製圖表" : "示意圖片") + '" data-zoom="visual">' +
+      '<figcaption>' + esc(v.title || (v.kind === "chart" ? "重製圖表" : "示意圖片")) + '</figcaption>' +
+      (v.kind === "chart" && v.original ? '<details><summary>對照原裁圖</summary><img src="' + v.original + '" alt="原圖圖表" data-zoom="visual"></details>' : "") + '</figure>'
+    ).join("") + "</div></div>";
+  }
   const pad = (n) => String(n).padStart(2, "0");
   const localDate = (d) => { d = d || new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
   const parseDate = (s) => { const n = String(s || "").split("-").map(Number); return new Date(n[0], (n[1] || 1) - 1, n[2] || 1); };
@@ -806,7 +826,7 @@
     const img = imgURL(q), iv = nextIntervals(q), lv = q.difficulty || 3;
     let body = '<article class="rcard" id="reviewCard"><div class="rv-head"><div class="q-tags"><span class="tag" style="--sc:' + subjColor(q.subject) + '">' + esc(q.subject) + '</span><span class="tag plain">' + esc(q.topic || "未分類") + '</span><span class="diff" title="難度 ' + lv + '">' + [1, 2, 3, 4, 5].map((k) => '<i class="' + (k <= lv ? "on" : "") + '"></i>').join("") + '</span></div><span class="rv-round">第 ' + ((q.reviewCount || 0) + 1) + " 次重做</span></div>" +
       (img ? '<img class="rv-img" src="' + img + '" alt="題目照片" data-zoom="' + esc(q.id) + '">' : "") +
-      '<div class="rv-q">' + esc(q.question || "請依照上方照片作答") + "</div>";
+      '<div class="rv-q">' + esc(q.question || "請依照上方照片或圖像作答") + "</div>" + visualHTML(q);
     if (S.revealed) {
       body += '<div class="rv-answer"><div class="rv-block"><h3>答案</h3><p class="rv-key">' + esc(q.answer || "沒有填寫答案") + '</p></div><div class="rv-block"><h3>完整詳解</h3><p>' + esc(q.solution || "還沒有詳解") + "</p></div>" + (q.reflection ? '<div class="rv-block"><h3>當時寫給自己的話</h3><p class="rv-note">' + esc(q.reflection) + "</p></div>" : "") + "</div>" +
         '<div class="rate"><button class="rate-btn rate-again" data-review="again">' + icon("i-close") + "不會<small>" + intervalLabel(iv.again) + '再做</small><kbd class="kbd">1</kbd></button><button class="rate-btn rate-hard" data-review="hard">' + icon("i-wave") + "模糊<small>" + intervalLabel(iv.hard) + '再看</small><kbd class="kbd">2</kbd></button><button class="rate-btn rate-good" data-review="good">' + icon("i-check") + "答對<small>" + intervalLabel(iv.good) + '再複習</small><kbd class="kbd">3</kbd></button></div>';
@@ -1089,7 +1109,7 @@
   function updateLevel() { $("levelLabel").textContent = LEVELS[radioVal("difficulty", "3")] || ""; }
   function updateComplete() {
     const items = [
-      ["題目", !!($("questionText").value.trim() || S.image)], ["答案", !!$("answerText").value.trim()],
+      ["題目", !!($("questionText").value.trim() || S.image || S.visuals.length)], ["答案", !!$("answerText").value.trim()],
       ["詳解", !!$("solutionText").value.trim()], ["單元", !!$("topicField").value.trim()], ["給自己的話", !!$("reflectionText").value.trim()]
     ];
     const done = items.filter((x) => x[1]).length, pct = Math.round(done / items.length * 100);
@@ -1099,7 +1119,7 @@
   }
   function editorSnapshot() {
     return {
-      editing: S.editing, image: safeImage(S.image), question: $("questionText").value, answer: $("answerText").value, solution: $("solutionText").value,
+      editing: S.editing, image: safeImage(S.image), visuals: normalizedVisuals(S.visuals), question: $("questionText").value, answer: $("answerText").value, solution: $("solutionText").value,
       reflection: $("reflectionText").value, subject: radioVal("subject", firstSubject()), topic: $("topicField").value, source: $("sourceField").value,
       difficulty: Number(radioVal("difficulty", "3")), reason: radioVal("reason", "觀念不清")
     };
@@ -1108,7 +1128,7 @@
      有題目文字或照片時 停止輸入不到一秒就寫入錯題本
      新題目第一次儲存就會出現在資料庫 之後的修改都直接更新同一題 */
   let saveTimer = null, saving = null, savePending = false, lastSig = "";
-  const editorSig = () => { const v = editorSnapshot(); return JSON.stringify([v.question, v.answer, v.solution, v.reflection, v.subject, v.topic, v.source, v.difficulty, v.reason, v.image.length, v.image.slice(-64)]); };
+  const editorSig = () => { const v = editorSnapshot(); return JSON.stringify([v.question, v.answer, v.solution, v.reflection, v.subject, v.topic, v.source, v.difficulty, v.reason, v.image.length, v.image.slice(-64), JSON.stringify(v.visuals.map((x) => [x.id, x.kind, x.image.length, x.image.slice(-40), x.title, x.chartData, x.xAxis, x.yAxis]))]); };
   function scheduleDraft() {
     updateComplete();
     clearTimeout(saveTimer);
@@ -1136,7 +1156,7 @@
   function buildQuestion(previous) {
     return Object.assign({}, previous || {}, {
       id: previous ? previous.id : uid(), createdAt: previous ? previous.createdAt : stamp(), createdDate: previous ? previous.createdDate : today(),
-      updatedAt: stamp(), image: safeImage(S.image), question: $("questionText").value.trim(), answer: $("answerText").value.trim(), solution: $("solutionText").value.trim(), reflection: $("reflectionText").value.trim(),
+      updatedAt: stamp(), image: safeImage(S.image), visuals: normalizedVisuals(S.visuals), question: $("questionText").value.trim(), answer: $("answerText").value.trim(), solution: $("solutionText").value.trim(), reflection: $("reflectionText").value.trim(),
       subject: radioVal("subject", firstSubject()), topic: $("topicField").value.trim(), source: $("sourceField").value.trim(),
       difficulty: Number(radioVal("difficulty", "3")), reason: radioVal("reason", "觀念不清"),
       dueDate: previous ? previous.dueDate : plusDays(today(), 1), streak: previous ? (previous.streak || 0) : 0, reviewCount: previous ? (previous.reviewCount || 0) : 0
@@ -1146,7 +1166,7 @@
     clearTimeout(saveTimer); saveTimer = null;
     if (saving) { savePending = true; return saving; }
     const sig = editorSig();
-    const hasContent = !!($("questionText").value.trim() || S.image);
+    const hasContent = !!($("questionText").value.trim() || S.image || S.visuals.length);
     if (!hasContent) {
       const snap = editorSnapshot();
       if (snap.answer || snap.solution || snap.topic || snap.reflection) dbRequest("config", "put", { key: "editorDraft", value: snap, updatedAt: stamp() }).catch(() => {});
@@ -1184,7 +1204,7 @@
     $("cancelEdit").textContent = isNew ? "捨棄這一題" : editing ? "復原這次修改" : "清空重來";
   }
   function fillEditor(d) {
-    releaseOcrSource(); S.image = safeImage(d.image); previewImage();
+    releaseOcrSource(); S.image = safeImage(d.image); S.visuals = normalizedVisuals(d.visuals); previewImage(); previewVisuals();
     $("questionText").value = d.question || ""; $("answerText").value = d.answer || ""; $("solutionText").value = d.solution || "";
     $("reflectionText").value = d.reflection || ""; $("topicField").value = d.topic || ""; $("sourceField").value = d.source || "";
     setRadio("subject", d.subject || firstSubject()); setRadio("reason", d.reason || "觀念不清"); setRadio("difficulty", Number(d.difficulty) || 3);
@@ -1213,7 +1233,7 @@
     clearTimeout(saveTimer); saveTimer = null; savePending = false;
     if (S.db) { dbRequest("config", "delete", "editorDraft").catch(() => {}); dbRequest("config", "delete", "editorSession").catch(() => {}); }
     delete S.cfg.editorDraft; delete S.cfg.editorSession;
-    releaseOcrSource(); $("questionForm").reset(); S.image = ""; S.editing = null; S.autoNew = null; S.editOriginal = null; previewImage();
+    releaseOcrSource(); $("questionForm").reset(); S.image = ""; S.visuals = []; S.editing = null; S.autoNew = null; S.editOriginal = null; previewImage(); previewVisuals();
     lastSig = ""; S.savedAt = null;
     setRadio("subject", firstSubject()); setRadio("reason", "觀念不清"); setRadio("difficulty", 3);
     setEditorMode(false); updateLevel(); updateTopics(); updateComplete();
@@ -1283,7 +1303,7 @@
     worker: null, wLang: "", running: false, token: 0, idle: null,
     last: 0, watch: null, preloading: null, ready: false,
     mstate: "idle", mpct: 0, statusText: "",
-    source: null, sourceReady: false, candidates: [], selected: 0
+    source: null, sourceReady: false, candidates: [], selected: 0, mode: "text"
   };
   let ocrLoading = null;
   function releaseOcrSource() {
@@ -1527,22 +1547,222 @@
     g.drawImage(img, x, y, w, h, 0, 0, c.width, c.height);
     return c.toDataURL("image/jpeg", 0.82);
   }
+
+  /* 圖文分區：文字走 OCR 圖表重製使用人工校正的數值 示圖只裁切 */
+  const CHART = { crop: "", editId: null };
+  function previewVisuals() {
+    const list = $("visualList");
+    const items = normalizedVisuals(S.visuals);
+    list.innerHTML = items.length ? items.map((v, i) =>
+      '<article class="visual-card"><img src="' + v.image + '" alt="' + esc(v.kind === "chart" ? "圖表" : "示圖") + '">' +
+      '<div class="visual-card-info"><strong>' + esc(v.title || (v.kind === "chart" ? "重製圖表" : "裁切示圖")) + '</strong><small>' +
+      (v.kind === "chart" ? "圖表重製 數據可再次修改" : "獨立圖片 不混入辨識文字") +
+      '</small><div class="visual-card-actions">' +
+      (v.kind === "chart" ? '<button type="button" data-visual-edit="' + esc(v.id) + '">編輯圖表</button>' : "") +
+      '<button type="button" data-visual-remove="' + esc(v.id) + '">移除區塊</button></div></div></article>'
+    ).join("") : '<p class="visual-empty">尚未擷取圖像 點選圖像分區並圈選圖表或示圖</p>';
+    $("visualCount").textContent = items.length ? items.length + " 個區塊" : "";
+  }
+  function addVisual(v) {
+    if (S.visuals.length >= 12) { toast("每題最多保存十二個圖像區塊", { tone: "warn" }); return false; }
+    S.visuals.push(v); previewVisuals(); scheduleDraft(); FX.haptic(8);
+    return true;
+  }
+  function setOcrMode(mode) {
+    OCR.mode = ["text", "chart", "illustration"].includes(mode) ? mode : "text";
+    all("#ocrModes [data-ocr-mode]").forEach((b) => {
+      const active = b.dataset.ocrMode === OCR.mode;
+      b.classList.toggle("active", active); b.setAttribute("aria-pressed", String(active));
+    });
+    $("ocrLang").hidden = OCR.mode !== "text";
+    $("ocrAll").hidden = OCR.mode !== "text";
+    const labels = { text: "辨識選取文字", chart: "擷取並重製圖表", illustration: "裁切儲存示圖" };
+    $("ocrGo").innerHTML = icon(OCR.mode === "text" ? "i-scan" : "i-image") + labels[OCR.mode];
+    $("ocrTip").textContent = {
+      text: "只圈選文字區域 圖表及示圖請切換專用模式",
+      chart: "圈選整張圖表 再輸入正確數據重製 不會猜測圖表數值",
+      illustration: "圈選幾何圖與照片等示圖 直接擷取成獨立圖片"
+    }[OCR.mode];
+  }
+  async function cropSelectedRegion() {
+    let img = OCR.sourceReady ? OCR.source : null;
+    if (!img) {
+      img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve; img.onerror = reject; img.src = S.image;
+      });
+    }
+    if (!img) throw new Error("missing image");
+    return ocrPhotoPreview(img, OCR.rect);
+  }
+  function chartRows(value) {
+    const lines = String(value || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (lines.length < 2 || lines.length > 40) return null;
+    const parsed = [];
+    for (const line of lines) {
+      const parts = line.split(/[,，\t ]+/).filter(Boolean);
+      if (parts.length < 2) return null;
+      const y = Number(parts.pop());
+      if (!Number.isFinite(y)) return null;
+      parsed.push({ name: parts.join(" ").slice(0, 24), value: y });
+    }
+    return parsed;
+  }
+  function paintChart(canvas, rows, type, title, xAxis, yAxis) {
+    if (!canvas || !rows) return;
+    canvas.width = 1100; canvas.height = 680;
+    const g = canvas.getContext("2d");
+    if (!g) return;
+    const w = canvas.width, h = canvas.height, l = 122, right = 65, top = 94, bottom = 144;
+    const plotW = w - l - right, plotH = h - top - bottom;
+    g.fillStyle = "#ffffff"; g.fillRect(0, 0, w, h);
+    g.fillStyle = "#233d58"; g.textAlign = "center"; g.font = "bold 28px system-ui";
+    g.fillText(String(title || "圖表重製").slice(0, 45), w / 2, 52);
+    const numbers = rows.map((p) => p.value);
+    let min = Math.min(...numbers, 0), max = Math.max(...numbers, 0);
+    if (max === min) { max = min + 1; min -= 1; }
+    const step = (max - min) / 5; const valY = (v) => top + (max - v) / (max - min) * plotH;
+    g.strokeStyle = "#e1e8ef"; g.lineWidth = 2;
+    g.fillStyle = "#536377"; g.textAlign = "right"; g.font = "19px system-ui";
+    for (let i = 0; i <= 5; i++) {
+      const v = min + step * i, y = valY(v);
+      g.beginPath(); g.moveTo(l, y); g.lineTo(l + plotW, y); g.stroke();
+      g.fillText(Number(v.toFixed(2)).toString(), l - 13, y + 7);
+    }
+    g.strokeStyle = "#314a61"; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(l, top); g.lineTo(l, top + plotH); g.lineTo(l + plotW, top + plotH); g.stroke();
+    const gap = plotW / rows.length, xFor = (i) => l + gap * (i + .5);
+    g.font = "18px system-ui"; g.fillStyle = "#35495d"; g.textAlign = "center";
+    rows.forEach((p, i) => {
+      if (rows.length > 12 && i % Math.ceil(rows.length / 12) !== 0) return;
+      const name = p.name.length > 9 ? p.name.slice(0, 8) + "…" : p.name;
+      g.fillText(name, xFor(i), top + plotH + 31);
+    });
+    g.strokeStyle = "#2f5f8f"; g.fillStyle = "#4f8bbf"; g.lineWidth = 5;
+    if (type === "bar") {
+      rows.forEach((p, i) => {
+        const y = valY(p.value), zero = valY(0), bw = Math.max(5, gap * .65);
+        g.fillRect(xFor(i) - bw / 2, Math.min(y, zero), bw, Math.max(1, Math.abs(zero - y)));
+      });
+    } else {
+      if (type === "line") {
+        g.beginPath();
+        rows.forEach((p, i) => { const x = xFor(i), y = valY(p.value); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+        g.stroke();
+      }
+      rows.forEach((p, i) => {
+        g.beginPath(); g.arc(xFor(i), valY(p.value), 7, 0, Math.PI * 2); g.fill();
+      });
+    }
+    g.font = "21px system-ui"; g.fillStyle = "#33495d"; g.textAlign = "center";
+    g.fillText(String(xAxis || "橫軸").slice(0, 30), l + plotW / 2, h - 35);
+    g.save(); g.translate(35, top + plotH / 2); g.rotate(-Math.PI / 2);
+    g.fillText(String(yAxis || "縱軸").slice(0, 30), 0, 0); g.restore();
+    g.font = "15px system-ui"; g.fillStyle = "#718194"; g.textAlign = "right";
+    g.fillText("由校正數據重製", w - 26, h - 26);
+  }
+  function chartPreview() {
+    const rows = chartRows($("chartData").value);
+    $("chartHint").textContent = rows ? "已讀取 " + rows.length + " 筆資料 可再對照原圖校正" : "請輸入二至四十筆資料 每行為標籤空格數值";
+    $("chartHint").classList.toggle("warn", !rows);
+    const canvas = $("chartCanvas");
+    if (rows) paintChart(canvas, rows, $("chartType").value, $("chartTitle").value, $("chartXAxis").value, $("chartYAxis").value);
+    else { const g = canvas.getContext("2d"); g.clearRect(0, 0, canvas.width, canvas.height); }
+    $("chartSave").disabled = !rows;
+  }
+  function showChartEditor(v) {
+    CHART.crop = safeImage(v && (v.original || v.image)) || CHART.crop;
+    CHART.editId = v && v.id || null;
+    $("chartOriginal").src = CHART.crop;
+    $("chartType").value = v && v.chartType || "line";
+    $("chartTitle").value = v && v.title || "";
+    $("chartXAxis").value = v && v.xAxis || "";
+    $("chartYAxis").value = v && v.yAxis || "";
+    $("chartData").value = v && v.chartData || "";
+    $("chartKeep").hidden = !!CHART.editId;
+    chartPreview();
+    openOverlay($("chartSheet"));
+  }
+  async function chooseVisualRegion() {
+    if (!S.image || OCR.running) return;
+    if (OCR.mode === "text") { runOcr(false); return; }
+    $("ocrGo").disabled = true;
+    try {
+      const crop = await cropSelectedRegion();
+      if (OCR.mode === "illustration") {
+        if (addVisual({ id: uid(), kind: "illustration", image: crop, original: "", title: "裁切示圖" })) {
+          closeOverlay($("ocrSheet")); status("ocrStatus", "示圖已獨立擷取並自動儲存"); toast("已儲存示圖 不會混入文字");
+        }
+      } else {
+        closeOverlay($("ocrSheet"));
+        await new Promise((resolve) => whenSettled(resolve));
+        CHART.crop = crop; showChartEditor(null);
+      }
+    } catch (e) { console.error(e); toast("無法裁切這個區域 請重新選取", { tone: "warn" }); }
+    finally { $("ocrGo").disabled = false; }
+  }
+  function saveChartFigure(keepOriginal) {
+    const previous = S.visuals.find((v) => v.id === CHART.editId);
+    let figure;
+    if (keepOriginal) {
+      figure = { id: uid(), kind: "illustration", image: CHART.crop, title: $("chartTitle").value.trim() || "圖表原圖" };
+    } else {
+      const rows = chartRows($("chartData").value);
+      if (!rows) { toast("請先輸入有效的圖表數據", { tone: "warn" }); return; }
+      const canvas = $("chartCanvas");
+      paintChart(canvas, rows, $("chartType").value, $("chartTitle").value, $("chartXAxis").value, $("chartYAxis").value);
+      figure = {
+        id: CHART.editId || uid(), kind: "chart", image: canvas.toDataURL("image/png"),
+        original: safeImage(CHART.crop), title: $("chartTitle").value.trim() || "重製圖表",
+        chartType: $("chartType").value, xAxis: $("chartXAxis").value.trim(),
+        yAxis: $("chartYAxis").value.trim(), chartData: $("chartData").value.trim()
+      };
+    }
+    if (previous) {
+      S.visuals = S.visuals.map((v) => v.id === previous.id ? figure : v);
+      previewVisuals(); scheduleDraft();
+    } else if (!addVisual(figure)) return;
+    closeOverlay($("chartSheet"));
+    status("ocrStatus", keepOriginal ? "已保留圖表原圖 可稍後重製" : "圖表已依照輸入資料重新繪製並自動儲存");
+    toast(keepOriginal ? "已保留圖表裁圖" : "圖表重製完成");
+    CHART.crop = ""; CHART.editId = null;
+  }
+  function wireVisuals() {
+    $("runVisual").addEventListener("click", () => openOcr("chart"));
+    $("visualList").addEventListener("click", (e) => {
+      const remove = e.target.closest("[data-visual-remove]");
+      const edit = e.target.closest("[data-visual-edit]");
+      if (remove) {
+        S.visuals = S.visuals.filter((v) => v.id !== remove.dataset.visualRemove);
+        previewVisuals(); scheduleDraft();
+      } else if (edit) {
+        const v = S.visuals.find((x) => x.id === edit.dataset.visualEdit);
+        if (v && v.kind === "chart") showChartEditor(v);
+      }
+    });
+    $("chartClose").addEventListener("click", () => closeOverlay($("chartSheet")));
+    $("chartKeep").addEventListener("click", () => saveChartFigure(true));
+    $("chartSave").addEventListener("click", () => saveChartFigure(false));
+    ["chartData", "chartTitle", "chartXAxis", "chartYAxis"].forEach((id) => $(id).addEventListener("input", chartPreview));
+    $("chartType").addEventListener("change", chartPreview);
+  }
+
   function layoutSel() {
     const r = OCR.rect, sel = $("ocrSel");
     sel.style.left = r.x * 100 + "%"; sel.style.top = r.y * 100 + "%"; sel.style.width = r.w * 100 + "%"; sel.style.height = r.h * 100 + "%";
   }
   function setOcrBusy(on) {
     $("ocrSheet").classList.toggle("busy", on);
-    $("ocrProg").hidden = !on; $("ocrGo").disabled = on; $("ocrAll").disabled = on;
+    $("ocrProg").hidden = !on; $("ocrGo").disabled = on; $("ocrAll").disabled = on; all("#ocrModes button").forEach((b) => b.disabled = on);
     $("ocrCancel").textContent = on ? "停止辨識" : "取消";
     all("#ocrLang .seg-item").forEach((b) => { b.disabled = on; });
   }
-  function openOcr() {
+  function openOcr(mode) {
     if (!S.image) { toast("請先加入圖片", { tone: "warn" }); return; }
     OCR.lang = langForSubject(radioVal("subject", ""));
     all("#ocrLang .seg-item").forEach((b) => b.classList.toggle("active", b.dataset.lang === OCR.lang));
     const tip = $("ocrTip"); tip.classList.remove("warn");
-    tip.textContent = (S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3)) ? "請圈選題目文字 小範圍辨識更省記憶體" : "圈選文字即可辨識 數學式與上下標仍需校對";
+    setOcrMode(mode);
     $("ocrImg").src = S.image; layoutSel(); setOcrBusy(false);
     openOverlay($("ocrSheet"));
     $("ocrSheet")._onClose = () => { if (OCR.running) stopOcr(true); };
@@ -1690,7 +1910,8 @@
     };
     stage.addEventListener("pointerup", end);
     stage.addEventListener("pointercancel", end);
-    $("ocrGo").addEventListener("click", () => runOcr(false));
+    $("ocrGo").addEventListener("click", chooseVisualRegion);
+    $("ocrModes").addEventListener("click", (e) => { const b = e.target.closest("[data-ocr-mode]"); if (b && !OCR.running) setOcrMode(b.dataset.ocrMode); });
     $("ocrAll").addEventListener("click", () => runOcr(true));
     $("ocrCancel").addEventListener("click", () => { if (OCR.running) stopOcr(false); else closeOverlay($("ocrSheet")); });
     $("ocrReviewCancel").addEventListener("click", () => closeOverlay($("ocrReview")));
@@ -1776,7 +1997,7 @@
     const sec = (t, v, cls) => (v ? '<div class="sheet-sec"><h3>' + esc(t) + '</h3><p class="' + (cls || "") + '">' + esc(v) + "</p></div>" : "");
     $("modalBody").innerHTML = '<div class="q-tags"><span class="tag" style="--sc:' + subjColor(q.subject) + '">' + esc(q.subject) + "</span>" + tag + '<span class="diff" title="難度 ' + lv + '">' + [1, 2, 3, 4, 5].map((k) => '<i class="' + (k <= lv ? "on" : "") + '"></i>').join("") + "</span></div>" +
       (img ? '<img class="sheet-img" alt="原始錯題照片" src="' + img + '" data-zoom="' + esc(q.id) + '">' : "") +
-      sec("題目", q.question || (img ? "" : "沒有題目文字")) + sec("答案", q.answer || "還沒有填寫", "rv-key") + sec("詳解", q.solution || "還沒有填寫") + sec("給未來的自己", q.reflection, "rv-note") +
+      sec("題目", q.question || (img || normalizedVisuals(q.visuals).length ? "" : "沒有題目文字")) + visualHTML(q) + sec("答案", q.answer || "還沒有填寫", "rv-key") + sec("詳解", q.solution || "還沒有填寫") + sec("給未來的自己", q.reflection, "rv-note") +
       '<div class="sheet-grid"><div><span>錯誤原因</span><strong>' + esc(q.reason || "未標記") + "</strong></div><div><span>下次複習</span><strong>" + esc(dateShort(q.dueDate) || "未排程") + "</strong></div><div><span>重做次數</span><strong>" + (q.reviewCount || 0) + " 次</strong></div><div><span>連續答對</span><strong>" + (q.streak || 0) + " 次</strong></div><div><span>加入日期</span><strong>" + esc(dateShort(q.createdDate)) + "</strong></div><div><span>題目來源</span><strong>" + esc(q.source || "未填寫") + "</strong></div></div>" +
       '<div class="sheet-actions"><button class="btn btn-primary" data-action="edit" data-id="' + esc(q.id) + '">' + icon("i-edit") + "編輯這題</button>" + (isDue(q) ? "" : '<button class="btn btn-ghost" data-action="queue" data-id="' + esc(q.id) + '">' + icon("i-cards") + "排入今天複習</button>") + '<button class="btn btn-quiet" data-action="delete" data-id="' + esc(q.id) + '">' + icon("i-trash") + "刪除</button></div>";
     $("modalBody").scrollTop = 0;
@@ -1891,7 +2112,7 @@
       if (!ok) return;
       const tx = S.db.transaction(["questions", "reviews", "daily", "config"], "readwrite");
       const done = new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onabort = () => reject(tx.error || new Error("abort")); tx.onerror = () => reject(tx.error || new Error("error")); });
-      for (const q of data.questions) tx.objectStore("questions").put(Object.assign({}, q, { image: safeImage(q.image) }));
+      for (const q of data.questions) tx.objectStore("questions").put(Object.assign({}, q, { image: safeImage(q.image), visuals: normalizedVisuals(q.visuals) }));
       for (const r of data.reviews) tx.objectStore("reviews").put(r);
       for (const d of data.daily) tx.objectStore("daily").put(d);
       if (/^\d{4}-\d{2}-\d{2}$/.test(data.examDate || "") && !(data.settings && data.settings.examId)) tx.objectStore("config").put({ key: "examDate", value: data.examDate });
@@ -2865,8 +3086,8 @@
     $("galleryInput").addEventListener("change", (e) => loadPhoto(e.target.files[0]));
     $("cameraInput").addEventListener("change", (e) => loadPhoto(e.target.files[0]));
     $("removePhoto").addEventListener("click", () => { if (!S.image) return; releaseOcrSource(); S.image = ""; previewImage(); scheduleDraft(); status("ocrStatus", "已移除圖片"); });
-    $("runOcr").addEventListener("click", openOcr);
-    wireOcr();
+    $("runOcr").addEventListener("click", () => openOcr("text"));
+    wireOcr(); wireVisuals();
     $("rotatePhoto").addEventListener("click", rotatePhoto);
     $("zoomPhoto").addEventListener("click", () => { if (!S.image) { toast("請先加入圖片", { tone: "warn" }); return; } openLightbox(S.image, true); });
     const drop = $("photoDrop");
