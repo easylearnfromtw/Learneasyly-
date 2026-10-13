@@ -129,3 +129,10 @@ node scripts/update-admission.mjs --limit 20
 技術 HTML CSS 原生 JavaScript IndexedDB WebGL Web Audio Screen Wake Lock Tesseract.js KaTeX Service Worker PWA GitHub Actions
 
 Copyright 2026 Learn Angle 稜角
+
+
+## 圖像分區與圖表重製
+
+新增錯題可以選擇「轉文字」或「圖像分區」。在圈選畫面中切換文字辨識、圖表重製、示圖裁切。文字使用裝置端 Tesseract 校對；示意圖與幾何圖直接存成獨立裁圖，不被混入文字欄位。折線、長條、散點圖可輸入經人工核對的橫軸標籤與數值重新繪製，圖表與來源裁圖會一起保存。每題最多 12 個圖像區塊。資料隨 IndexedDB 題目與 JSON 備份匯出。
+
+目前不採用外部付費影像理解 API。圖表的數值、幾何標記和非標準分析圖無法保證自動辨識：需要人工圈選與校對，或先保存原裁圖。這避免錯誤的座標或曲線被當成正確資料。
