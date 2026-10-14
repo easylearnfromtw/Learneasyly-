@@ -181,3 +181,13 @@ Copyright 2026 Learn Angle 稜角
 - 無法可靠與印刷分開的黑筆字 可使用「補抓筆跡」自行圈選備份原圖 不會在辨識結果裡冒充原印刷題目
 - 辨識結果 原始題目照片和筆跡備註各自保留 資料僅在使用者自己的瀏覽器
 - 本功能不是專用手寫數學辨識模型 不承諾自動辨識手寫解題過程、函數或符號 不會自動推斷答案
+
+## iPhone 鎖定畫面計時（iOS 原生版）
+
+**純 GitHub Pages／Safari／主畫面 PWA 無法直接顯示持續更新的鎖屏 Live Activities。**
+
+- 在 iPhone 網頁版的「讀書計時」下方新增「開啟常亮專注畫面」，配合原有 Screen Wake Lock（是否可常亮取決於 iOS／瀏覽器實際支援）。鎖定手機時，這不是原生鎖屏計時。
+- 新增 [ios/README.md](ios/README.md) 及 `ios/project.yml`、SwiftUI／ActivityKit／WidgetKit 原生程式，可以用 Xcode 編譯成伴隨 App。
+- 伴隨 App 透過安全的 WKWebView 原生訊息通道接收網頁計時開始、暫停、繼續、完成、捨棄，並將正計時或 25／50 分鐘倒數放到 iOS 鎖定畫面／支援的動態島。
+- **原生 App 仍須使用 Mac／Xcode 建置、簽署與安裝，才會出現真正鎖屏卡片；此 GitHub 更新不會直接讓現有 PWA 擁有 ActivityKit 權限。**
+- WKWebView 與已安裝的 PWA 資料空間不同，移轉前請先在原 App 匯出並在新 App 匯入錯題／讀書紀錄備份。
