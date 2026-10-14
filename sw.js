@@ -1,7 +1,7 @@
 /* Learn Angle offline shell v7: network first for the app and data, cache first for pinned OCR and math files from the CDN. */
-const CACHE = "learneasyly-shell-v17";
+const CACHE = "learneasyly-shell-v18";
 const CDN_CACHE = "learneasyly-cdn-v1";
-const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./fx.js", "./glass.js", "./cube.js", "./icon.svg", "./icon-maskable.svg", "./manifest.webmanifest", "./privacy.html", "./data/exams.json"];
+const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./fx.js", "./glass.js", "./cube.js", "./icon.svg", "./icon-maskable.svg", "./brand/pinned-tab.svg", "./assets/favicon.ico", "./assets/icon-32.png", "./assets/icon-48.png", "./assets/icon-192.png", "./assets/icon-512.png", "./assets/icon-maskable-192.png", "./assets/icon-maskable-512.png", "./assets/apple-touch-icon.png", "./assets/og-image.jpg", "./assets/social-square.jpg", "./sitemap.xml", "./manifest.webmanifest", "./privacy.html", "./data/exams.json"];
 const CDN_FILES = /^\/(npm\/(tesseract\.js(-core)?@|katex@)|gh\/tesseract-ocr\/tessdata_fast@)/;
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
