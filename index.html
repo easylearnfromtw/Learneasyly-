@@ -290,7 +290,7 @@
                   <ul class="plain-list">
                     <li>拍照時盡量正對紙面 避免反光與陰影 保留完整題目與選項</li>
                     <li>上傳後文字及圖像在裝置上自動處理 請對照原圖校正辨識結果</li>
-                    <li>數學題會嘗試多模型交叉辨識 仍請核對負號 比例 向量與根號</li>
+                    <li>數學題會特別標示向量箭頭 線段上劃線 內積 根號與分數 不能辨識時會提示校對</li>
                     <li>圖表和示圖會嘗試自動辨識及擷取 無法確定時保留原圖</li>
                     <li>圖表自動擷取不等於正確重建數據 圖上的數字仍需人工核對</li>
                     <li>iPhone 在照片裡長按題目文字 選取後拷貝 再貼到題目文字</li>
@@ -298,7 +298,18 @@
                     <li>題目很短時 直接打字通常最快</li>
                   </ul>
                 </details>
-                <div class="field"><label for="questionText">題目文字 <span>可編輯</span></label><textarea id="questionText" rows="5" placeholder="辨識結果會出現在這裡 也可以直接貼上題目文字"></textarea></div>
+                <div class="field"><label for="questionText">題目文字 <span>可編輯</span></label><textarea id="questionText" rows="5" spellcheck="false" placeholder="辨識結果會出現在這裡 也可以直接貼上題目文字"></textarea>
+                  <div id="questionMathTools"><div class="math-mark-tools" role="group" aria-label="數學記號插入工具">
+                  <span class="math-mark-tools-label">數學符號</span>
+                  <button type="button" data-math-mark="vector" title="選取 OA 後插入向量箭頭">向量 AB⃗</button>
+                  <button type="button" data-math-mark="segment" title="選取 OA 後插入線段上劃線">線段 AB̅</button>
+                  <button type="button" data-math-mark="dot" title="插入內積點">內積 ·</button>
+                  <button type="button" data-math-mark="fraction" title="插入分數">分數</button>
+                  <button type="button" data-math-mark="sqrt" title="插入根號">根號 √</button>
+                </div></div>
+                  <div id="questionMathNotice" hidden aria-live="polite"></div>
+                  <div class="math-live-preview" id="questionMathPreview" hidden aria-label="數學記號排版預覽"></div>
+                </div>
               </div>
 
               <div class="panel">
@@ -836,6 +847,16 @@
         <div class="ocr-review-content">
           <div class="ocr-review-head"><label for="ocrReviewText">辨識文字 可以直接修改</label><span id="ocrReviewScore" class="ocr-score" role="status"></span></div>
           <textarea id="ocrReviewText" rows="9" spellcheck="false" aria-describedby="ocrReviewHint"></textarea>
+          <div id="ocrMathTools"><div class="math-mark-tools" role="group" aria-label="數學記號插入工具">
+                  <span class="math-mark-tools-label">數學符號</span>
+                  <button type="button" data-math-mark="vector" title="選取 OA 後插入向量箭頭">向量 AB⃗</button>
+                  <button type="button" data-math-mark="segment" title="選取 OA 後插入線段上劃線">線段 AB̅</button>
+                  <button type="button" data-math-mark="dot" title="插入內積點">內積 ·</button>
+                  <button type="button" data-math-mark="fraction" title="插入分數">分數</button>
+                  <button type="button" data-math-mark="sqrt" title="插入根號">根號 √</button>
+                </div></div>
+          <div id="ocrMathNotice" hidden aria-live="polite"></div>
+          <div class="math-live-preview" id="ocrMathPreview" hidden aria-label="數學記號排版預覽"></div>
           <p class="ocr-review-note" id="ocrReviewHint">請對照原圖檢查內容</p>
           <button type="button" class="btn btn-quiet btn-sm" id="ocrReviewAlt" hidden>查看另一種結果</button>
           <div class="ocr-review-tools" aria-label="OCR 文字與 PDF 操作">
