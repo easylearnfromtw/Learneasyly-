@@ -101,7 +101,8 @@
         <button class="side-item" data-go="add"><svg class="ic"><use href="#i-plus"/></svg><span>新增錯題</span><kbd class="kbd">N</kbd></button>
         <button class="side-item" data-go="library"><svg class="ic"><use href="#i-stack"/></svg><span>錯題資料庫</span></button>
         <button class="side-item" data-go="review"><svg class="ic"><use href="#i-cards"/></svg><span>今日複習</span><span class="due-pill" id="navDue">0</span></button>
-        <button class="side-item" data-go="study"><svg class="ic"><use href="#i-timer"/></svg><span>讀書計畫</span><span class="side-live" id="sideTimer" hidden></span><kbd class="kbd">T</kbd></button>
+        <button class="side-item" data-go="study"><svg class="ic"><use href="#i-timer"/></svg><span>讀書計時</span><span class="side-live" id="sideTimer" hidden></span><kbd class="kbd">T</kbd></button>
+        <button class="side-item" data-go="schedule"><svg class="ic"><use href="#i-calendar"/></svg><span>讀書排程</span></button>
         <button class="side-item" data-go="analytics"><svg class="ic"><use href="#i-chart"/></svg><span>學習分析</span></button>
         <button class="side-item" data-go="admit"><svg class="ic"><use href="#i-school"/></svg><span>落點預估</span></button>
         <button class="side-item" data-go="settings"><svg class="ic"><use href="#i-sliders"/></svg><span>設定與備份</span></button>
@@ -449,7 +450,8 @@
         <section class="page" id="page-study" aria-labelledby="h-study">
           <div class="page-head">
             <h1 class="grid-title small" id="h-study" data-grid="讀書計畫">讀書計畫</h1>
-            <p class="lede">計時 排程 紀錄 每一分鐘的專注都看得見</p>
+            <p class="lede">專注計時與讀書紀錄，為每一分鐘留下證據</p>
+            <button type="button" class="btn btn-ghost btn-sm study-schedule-link" data-go="schedule"><svg class="ic"><use href="#i-calendar"/></svg>前往獨立讀書排程 <svg class="ic"><use href="#i-arrow"/></svg></button>
           </div>
           <div class="study-top">
             <article class="timer-card" id="timerCard" aria-label="讀書計時">
@@ -538,16 +540,6 @@
             </label>
           </section>
 
-          <div class="panel plan-panel" id="planPanel">
-            <div class="panel-head">
-              <div><h2>讀書排程</h2><p class="muted" id="planSub">安排每天要讀的內容 從排程開始計時會自動累積進度</p></div>
-              <div class="btn-row"><button type="button" class="btn btn-ghost btn-sm" id="planAuto"><svg class="ic"><use href="#i-calendar"/></svg>自動排程</button><button type="button" class="btn btn-primary btn-sm" id="planAdd"><svg class="ic"><use href="#i-plus"/></svg>新增</button></div>
-            </div>
-            <div class="week-head"><button type="button" class="icon-btn" id="weekPrev" aria-label="上一週"><svg class="ic flip"><use href="#i-arrow"/></svg></button><strong id="weekLabel">本週</strong><button type="button" class="icon-btn" id="weekNext" aria-label="下一週"><svg class="ic"><use href="#i-arrow"/></svg></button></div>
-            <div class="week-strip" id="weekStrip"></div>
-            <div class="plan-list" id="planList"></div>
-          </div>
-
           <div class="split">
             <div class="panel">
               <div class="panel-head"><div><h2>讀書紀錄</h2><p class="muted" id="logSub">今天的每一段專注</p></div><button type="button" class="link-btn" id="logAdd">補登紀錄<svg class="ic"><use href="#i-plus"/></svg></button></div>
@@ -558,6 +550,64 @@
               <div class="study-chart" id="studyChart"></div>
               <div class="subject-mins" id="subjectMins"></div>
             </div>
+          </div>
+        </section>
+
+        <!-- 獨立讀書排程 -->
+        <section class="page" id="page-schedule" aria-labelledby="h-schedule">
+          <div class="schedule-hero">
+            <div class="schedule-hero-copy">
+              <span class="schedule-eyebrow">YOUR STUDY ROUTE <span aria-hidden="true">/</span> WEEKLY PLANNER</span>
+              <h1 id="h-schedule">讀書排程<span class="schedule-title-period">.</span></h1>
+              <p>把一週看清楚 再把今天做好。排程與實際讀書時間會一起累積。</p>
+            </div>
+            <div class="schedule-hero-actions">
+              <button type="button" class="btn btn-quiet" id="planToday"><svg class="ic"><use href="#i-calendar"/></svg>回到今天</button>
+              <button type="button" class="btn btn-ghost" id="planAuto"><svg class="ic"><use href="#i-bolt"/></svg>智慧排程</button>
+              <button type="button" class="btn btn-primary" id="planAdd"><svg class="ic"><use href="#i-plus"/></svg>新增任務</button>
+            </div>
+          </div>
+          <div class="schedule-overview" aria-label="本週排程總覽">
+            <div class="schedule-metric"><span>本週已完成</span><strong id="scheduleWeekDone">0 <small>/ 0 項</small></strong><div class="schedule-metric-track"><i id="scheduleWeekProgress"></i></div></div>
+            <div class="schedule-metric"><span>本週預計投入</span><strong id="scheduleWeekPlanned">0 <small>分鐘</small></strong><p>依照目前的排程估算</p></div>
+            <div class="schedule-metric"><span>本週實際讀書</span><strong id="scheduleWeekActual">0 <small>分鐘</small></strong><p>來自已保存的讀書紀錄</p></div>
+          </div>
+          <div class="schedule-layout">
+            <div class="panel plan-panel schedule-calendar" id="planPanel">
+              <div class="schedule-calendar-heading">
+                <div><span class="schedule-section-eyebrow">WEEK VIEW</span><h2>一週安排</h2><p id="scheduleWeekSummary">今天適合從哪一科開始？</p></div>
+                <div class="schedule-week-controls">
+                  <button type="button" class="icon-btn" id="weekPrev" aria-label="上一週"><svg class="ic flip"><use href="#i-arrow"/></svg></button>
+                  <strong id="weekLabel">本週</strong>
+                  <button type="button" class="icon-btn" id="weekNext" aria-label="下一週"><svg class="ic"><use href="#i-arrow"/></svg></button>
+                </div>
+              </div>
+              <div class="week-strip" id="weekStrip" aria-label="選擇排程日期"></div>
+              <div class="schedule-day-heading">
+                <div><span class="schedule-section-eyebrow">DAILY TASKS</span><h3 id="scheduleDayHeading">今日任務</h3><p class="muted" id="planSub">選擇日期查看排程</p></div>
+                <button type="button" class="schedule-day-add" id="planAddDay"><svg class="ic"><use href="#i-plus"/></svg><span>加一項</span></button>
+              </div>
+              <div class="schedule-filters" id="scheduleFilters" role="group" aria-label="排程狀態篩選">
+                <button type="button" data-plan-filter="all" class="active" aria-pressed="true">全部 <span id="planFilterAll">0</span></button>
+                <button type="button" data-plan-filter="pending" aria-pressed="false">待完成 <span id="planFilterPending">0</span></button>
+                <button type="button" data-plan-filter="done" aria-pressed="false">已完成 <span id="planFilterDone">0</span></button>
+              </div>
+              <div class="plan-list" id="planList"></div>
+            </div>
+            <aside class="schedule-aside" aria-label="排程提示">
+              <div class="schedule-side-card schedule-day-summary">
+                <span class="schedule-section-eyebrow">AT A GLANCE</span>
+                <h3>當日進度</h3>
+                <div class="schedule-day-ring" id="scheduleDayRing" style="--progress:0"><strong id="scheduleDayPercent">0%</strong><small>任務完成率</small></div>
+                <div class="schedule-side-numbers"><span>計畫 <b id="scheduleDayPlanned">0 分</b></span><span>已讀 <b id="scheduleDayActual">0 分</b></span></div>
+              </div>
+              <div class="schedule-side-card schedule-next-step">
+                <span class="schedule-section-eyebrow">NEXT STEP</span>
+                <h3>下一項任務</h3>
+                <p id="scheduleNextTask">排好今天的第一項任務</p>
+                <button type="button" id="planGoTimer" class="btn btn-quiet">前往讀書計時 <svg class="ic"><use href="#i-arrow"/></svg></button>
+              </div>
+            </aside>
           </div>
         </section>
 
@@ -695,6 +745,7 @@
         <button class="tab" data-go="review" aria-label="複習"><svg class="ic"><use href="#i-cards"/></svg><span>複習</span><i class="tab-badge" id="tabDue" hidden>0</i></button>
         <button class="tab tab-add" data-go="add" aria-label="新增"><svg class="ic"><use href="#i-plus"/></svg><span>新增</span></button>
         <button class="tab" data-go="study" aria-label="讀書"><svg class="ic"><use href="#i-timer"/></svg><span>讀書</span><i class="tab-live" id="tabLive" hidden></i></button>
+        <button class="tab" data-go="schedule" aria-label="排程"><svg class="ic"><use href="#i-calendar"/></svg><span>排程</span></button>
         <button class="tab" data-go="analytics" aria-label="分析"><svg class="ic"><use href="#i-chart"/></svg><span>分析</span></button>
       </div>
     </nav>
