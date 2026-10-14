@@ -218,3 +218,17 @@ Copyright 2026 Learn Angle 稜角
 - 首頁今日讀書卡片與自動排程資料邏輯不變；離線快取殼更新版本，提醒使用者重新開啟網站以載入新版
 
 功能更新不代表已在 iPhone Safari 真機完成測試；修改後應檢查導覽、既有排程是否可見、重複排程、計時完成自動勾選與 IndexedDB 保存。
+
+
+## 品牌圖示、搜尋縮圖、LINE 分享與社群預覽
+
+網站與 PWA 現在具有完整的圖示／metadata 設定：
+
+- `icon.svg` 與 `icon-maskable.svg` 是與深藍黑板、白色幾何角度、黃色角度和紅色頂點一致的可縮放視覺母版。
+- `brand/og-wide.svg`（1200×630）與 `brand/og-square.svg`（800×800）分別用於橫式社群分享圖及方形社群圖片；`brand/pinned-tab.svg` 是 Safari 固定分頁單色圖。
+- GitHub Pages 部署時以 `scripts/build-brand-assets.py` 自動輸出真正的 PNG、ICO、JPG 檔案：`assets/favicon.ico`、16／32／48／96／120／144／152／167／180／192／256／384／512 px 圖示、180 px Apple Touch Icon、192／512 px maskable PWA 圖示，以及 `assets/og-image.jpg`（1200×630）和 `assets/social-square.jpg`（800×800）。
+- 首頁及 `privacy.html` 均具有 canonical、`og:site_name`、`og:title`、`og:description`、`og:image` 絕對公開圖片網址、尺寸、Twitter Summary Large Image，以及 favicon、Apple Touch Icon。首頁另外加入 WebApplication JSON-LD 與 `sitemap.xml`。
+- LINE 使用 Open Graph 預覽資訊，並沒有另一套必須設定的專屬 LINE meta。分享舊連結時預覽可能因 LINE、Facebook 等平台快取而延遲更新。
+- Google 搜尋結果的 favicon 和圖片是否顯示，由搜尋引擎自行判定。**目前網站是 GitHub Pages 專案子路徑，Google 對 hostname 等級 favicon 的處理可能導致搜尋結果不使用此站圖示，無法用 HTML 保證。**
+
+**部署注意：** PNG／JPG 不需要手動上傳，而是在 `.github/workflows/deploy.yml` 內使用 CairoSVG、Pillow 和 Noto CJK 字型從 SVG 渲染後一起部署。若 Actions 尚未完成，公開分享圖片可能暫時 404。切換網站主網域時請同步修改 canonical、Open Graph 絕對網址與 sitemap。這套產生程序不會碰觸 IndexedDB 的錯題、排程與讀書紀錄。
