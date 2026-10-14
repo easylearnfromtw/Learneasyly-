@@ -3154,6 +3154,16 @@
       setCfg("studyWeeklyReward", start);
       goals.push("完成本週 " + weekGoal + " 分鐘的累積目標");
     }
+    if (date === today()) {
+      for (const threshold of [3, 7, 14, 30]) {
+        if ((before.streak || 0) < threshold && (after.streak || 0) >= threshold)
+          goals.push("連續 " + threshold + " 天達成至少 15 分鐘");
+      }
+    }
+    for (const tier of STUDY_TITLES.slice(1)) {
+      if ((before.lifetime || 0) < tier.min && (after.lifetime || 0) >= tier.min)
+        goals.push("解鎖「" + tier.title + "」累積階段");
+    }
     if (!goals.length || mode === "quiet") return;
     if (mode === "energetic") celebrate({
       title: goals.length > 1 ? "一次完成兩個時間目標" : "讀書時間達標",
@@ -3271,16 +3281,20 @@
     const start = new Date(t.first || Date.now() - el), end = auto ? new Date(start.getTime() + sec * 1000) : new Date();
     const rec = { id: uid(), start: start.toISOString(), end: end.toISOString(), sec, subject: t.subject, kind: t.kind, note: clean(t.note).slice(0, 60), mode: t.mode, planId: t.planId || "" };
     const planId = t.planId;
+    const beforeTotals = studyTotals(false);
     const beforeGoals = { today: studyStoredMinutes(localDate(start), localDate(start)),
-      week: studyStoredMinutes(monday(localDate(start)), localDate(start)) };
+      week: studyStoredMinutes(monday(localDate(start)), localDate(start)),
+      lifetime: beforeTotals.lifetime, streak: studyDaysStreak() };
     Object.assign(t, { run: false, acc: 0, at: 0, first: 0, planId: "" });
     if (!auto) t.note = "";
     tmSave(); stopTicker(); wakeOff(); nativeTimerSync("finish");
     const ok = await putSession(rec, localDate(start));
     if (!ok) { toast("紀錄沒有存成功 請檢查儲存空間", { tone: "warn" }); return; }
     const finishDay = localDate(start);
+    const afterTotals = studyTotals(false);
     const afterGoals = { today: studyStoredMinutes(finishDay, finishDay),
-      week: studyStoredMinutes(monday(finishDay), finishDay) };
+      week: studyStoredMinutes(monday(finishDay), finishDay),
+      lifetime: afterTotals.lifetime, streak: studyDaysStreak() };
     celebrateStudyGoals(beforeGoals, afterGoals, finishDay);
     const mins = Math.max(1, Math.round(sec / 60));
     if (auto) {
