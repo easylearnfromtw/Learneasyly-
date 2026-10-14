@@ -1708,3 +1708,18 @@ body{font-synthesis:none}
 
 /* Auto image analysis is automatic not an explicit user-selectable mode */
 #runVisual[hidden], #ocrModes[hidden]{display:none!important}
+
+/* Math symbol review — preserves the paper-like Learn Angle UI */
+.math-mark-tools{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:10px}
+.math-mark-tools-label{font:650 12px/1.4 var(--sans);color:var(--ink-3);margin-right:2px}
+.math-mark-tools button{border:1px solid var(--line);border-radius:10px;padding:7px 11px;min-height:34px;cursor:pointer;background:var(--input,var(--paper));color:var(--ink);font:600 12px/1.3 var(--sans)}
+.math-mark-tools button:hover,.math-mark-tools button:focus-visible{border-color:var(--hl-ink,#507ca3);outline-offset:2px}
+.notation-notice{margin-top:11px;padding:11px 13px;border:1px solid var(--line);border-left:4px solid #c58b38;background:var(--paper);border-radius:11px}
+.notation-notice strong{font:700 13px var(--sans);color:var(--ink)}
+.notation-notice p{margin:5px 0 8px;color:var(--ink-2);font:500 12px/1.7 var(--sans)}
+.notation-tags{display:flex;gap:6px;flex-wrap:wrap}
+.notation-tags span{font:650 11px/1.3 var(--sans);color:var(--ink-2);padding:4px 8px;border-radius:7px;background:var(--input,var(--paper));border:1px solid var(--line)}
+.math-live-preview{margin-top:8px;max-height:190px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;border:1px dashed var(--line);border-radius:11px;padding:10px 12px;color:var(--ink);background:var(--paper);font:500 14px/1.7 var(--sans)}
+.math-live-preview::before{content:"排版預覽";display:block;font-size:11px;font-weight:700;color:var(--ink-3);margin-bottom:5px}
+#questionMathNotice[hidden],#ocrMathNotice[hidden],.math-live-preview[hidden]{display:none!important}
+@media (max-width:540px){.math-mark-tools{gap:5px}.math-mark-tools button{padding:7px 9px;min-height:36px}.notation-notice{padding:10px}}
