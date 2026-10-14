@@ -1734,3 +1734,10 @@ body{font-synthesis:none}
 .visual-note{margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2);font:500 13px/1.65 var(--sans)}
 #runInkCrop{min-height:40px}
 @media(max-width:540px){.math-diagnostic{padding:9px 11px}.ink-note-label textarea{font-size:16px}}
+
+/* Native Live Activity bridge status and transparent web-only fallback. */
+.ios-timer-bridge-info{display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center;max-width:420px;margin:11px auto 2px;padding:11px 12px;border:1px solid var(--line);border-radius:13px;background:var(--paper)}
+.ios-timer-bridge-info p{margin:0;font:500 12px/1.65 var(--sans);color:var(--ink-2)}
+.ios-timer-focus{border:1px solid var(--line);border-radius:10px;background:var(--input,var(--paper));color:var(--ink);font:650 12px/1.4 var(--sans);padding:9px 12px;min-height:36px;cursor:pointer}
+.ios-timer-focus:hover,.ios-timer-focus:focus-visible{border-color:var(--hl-ink);outline-offset:2px}
+.ios-timer-focus[hidden]{display:none!important}
