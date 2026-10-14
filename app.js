@@ -1318,7 +1318,7 @@
     OCR.source = null; OCR.sourceReady = false;
   }
   function rememberOcrSource(img) {
-    const limit = S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2600 : 3400;
+    const limit = S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2600 : 4100;
     const scale = Math.min(1, limit / Math.max(img.naturalWidth, img.naturalHeight));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
@@ -1433,7 +1433,8 @@
     const sw = Math.max(8, Math.min(W - sx, Math.round(r.w * W)));
     const sh = Math.max(8, Math.min(H - sy, Math.round(r.h * H)));
     const longest = Math.max(sw, sh);
-    const scale = Math.min(2.5, 2600 / longest);
+    const limit = S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3) ? 2400 : 3400;
+    const scale = Math.min(3, limit / longest);
     const cw = Math.max(8, Math.round(sw * scale)), ch = Math.max(8, Math.round(sh * scale));
     const c = document.createElement("canvas"); c.width = cw; c.height = ch;
     const g = c.getContext("2d", { willReadFrequently: true });
@@ -1492,7 +1493,7 @@
     const raw = Number(result && result.data && result.data.confidence);
     const confidence = Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
     const junk = (text.match(/[□�]/g) || []).length;
-    return { text, confidence, score: confidence + Math.min(8, text.length / 12) - junk * 6 };
+    return { text, confidence, score: confidence + Math.min(8, text.length / 12) - junk * 6, engine: "Tesseract" };
   }
   // Searchable PDFs are produced by the same on-device OCR pass.
   // Wrapping an image in PDF format cannot improve recognition accuracy.
@@ -1559,6 +1560,93 @@
     return c.toDataURL("image/jpeg", 0.82);
   }
 
+
+
+  // PP-OCRv5: an independent OCR architecture for difficult Chinese print.
+  // Progressive enhancement: never require its CDN or ONNX models to use the app.
+  const NEURAL = { instance: null, loading: null, blocked: false, toTW: null };
+  async function getNeuralOcr() {
+    if (NEURAL.instance) return NEURAL.instance;
+    if (NEURAL.blocked || navigator.onLine === false) return null;
+    if (!NEURAL.loading) NEURAL.loading = (async () => {
+      const module = await import("https://esm.sh/@paddleocr/paddleocr-js@0.4.2?bundle");
+      const OCRModel = module.PaddleOCR || (module.default && module.default.PaddleOCR);
+      if (!OCRModel || !OCRModel.create) throw new Error("PaddleOCR module not available");
+      return OCRModel.create({
+        lang: "ch", ocrVersion: "PP-OCRv5", worker: false,
+        textDetectionBatchSize: 1, textRecognitionBatchSize: 2,
+        ortOptions: { backend: "wasm", numThreads: 1, simd: true }
+      });
+    })().then((ocr) => (NEURAL.instance = ocr)).catch((error) => {
+      NEURAL.blocked = true;
+      console.warn("PP-OCRv5 is unavailable, retaining local Tesseract", error);
+      return null;
+    }).finally(() => { NEURAL.loading = null; });
+    return NEURAL.loading;
+  }
+  function neuralBBox(poly) {
+    if (!Array.isArray(poly) || !poly.length) return null;
+    const points = Array.isArray(poly[0]) ? poly : typeof poly[0] === "number"
+      ? [poly.slice(0, 2), poly.slice(2, 4), poly.slice(4, 6), poly.slice(6, 8)] : [];
+    const x = points.map((p) => Number(p[0])).filter(Number.isFinite);
+    const y = points.map((p) => Number(p[1])).filter(Number.isFinite);
+    if (x.length < 2 || y.length < 2) return null;
+    return { x0: Math.min(...x), x1: Math.max(...x), y0: Math.min(...y), y1: Math.max(...y) };
+  }
+  async function convertToTraditional(value) {
+    if (!/[汉语国会题图认]/.test(value)) return value;
+    try {
+      if (!NEURAL.toTW) {
+        const module = await import("https://cdn.jsdelivr.net/npm/opencc-js@1.5.0-beta.0/dist/esm/full.js");
+        const OpenCC = module.default || module;
+        NEURAL.toTW = OpenCC.Converter({ from: "cn", to: "tw" });
+      }
+      return NEURAL.toTW(value);
+    } catch (error) { console.warn("Optional script conversion skipped", error); return value; }
+  }
+  async function recognizeNeural(image) {
+    const ocr = await getNeuralOcr();
+    if (!ocr) return null;
+    const data = await ocr.predict(image);
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result || !Array.isArray(result.items)) return null;
+    const lines = result.items.map((item) => ({
+      text: String(item.text || "").trim(),
+      bbox: neuralBBox(item.poly || item.polygon || item.points),
+      score: Number(item.score)
+    })).filter((item) => item.text);
+    // Sort text by visual rows, then left-to-right within each row.
+    lines.sort((a, b) => {
+      if (!a.bbox || !b.bbox) return 0;
+      const ay = (a.bbox.y0 + a.bbox.y1)/2, by = (b.bbox.y0 + b.bbox.y1)/2;
+      const tolerance = Math.min(a.bbox.y1 - a.bbox.y0, b.bbox.y1 - b.bbox.y0) * .4;
+      return Math.abs(ay - by) < tolerance ? a.bbox.x0 - b.bbox.x0 : ay - by;
+    });
+    const textValue = cleanOCR(await convertToTraditional(lines.map((l) => l.text).join("\n")));
+    const scores = lines.map((l) => l.score).filter(Number.isFinite);
+    const confidence = scores.length ? scores.reduce((a, b) => a+b, 0) / scores.length * 100 : 0;
+    const layout = [{ paragraphs: [{ lines: lines.filter((l) => l.bbox).map((l) => ({
+      words: [{ text: l.text, bbox: l.bbox }]
+    })) }] }];
+    return { text: textValue, confidence: Math.max(0, Math.min(100, confidence)),
+      score: confidence + Math.min(8, textValue.length / 12),
+      engine: "PaddleOCR", pdf: null, layout, ocrWidth: image.width, ocrHeight: image.height };
+  }
+  function rankOcr(c, isMath) {
+    const t = cleanOCR(c && c.text);
+    if (!t) return -Infinity;
+    const han = (t.match(/[\u3400-\u9fff]/g) || []).length;
+    const good = (t.match(/[\u3400-\u9fffA-Za-z0-9]/g) || []).length;
+    const junk = (t.match(/[□�]/g) || []).length;
+    const punctuation = (t.match(/[\u25a0-\u25ff]/g) || []).length;
+    const math = isMath && /[=＋+－\\-×÷∠√∑:：²³]/.test(t) ? 2 : 0;
+    return Math.min(88, Number(c.confidence || 0)) * .55 +
+      Math.min(16, han * .22) + Math.min(10, t.length * .07) +
+      math - junk * 15 - punctuation * 5 - 14 * (1 - good / Math.max(1, t.length));
+  }
+  function sortOcr(candidates, isMath) {
+    return candidates.filter((x) => x && x.text).sort((a, b) => rankOcr(b,isMath) - rankOcr(a,isMath));
+  }
 
   // Uploads are processed on the current device without sending images to a paid API.
   // A new photo invalidates any in-flight recognition result so earlier photos cannot overwrite edits.
@@ -1921,7 +2009,7 @@
   }
   function showOcrResult(candidates, originalPreview) {
     OCR.candidates = candidates;
-    OCR.selected = candidates.length > 1 && candidates[1].score > candidates[0].score + 4 ? 1 : 0;
+    OCR.selected = 0;
     $("ocrReviewImg").src = originalPreview;
     setOcrCandidate(OCR.selected);
     $("ocrReviewAlt").hidden = candidates.length < 2;
@@ -1936,12 +2024,12 @@
     OCR.selected = index;
     $("ocrReviewText").value = c.text;
     const warning = c.confidence < 80 || /數學/.test(radioVal("subject", ""));
-    $("ocrReviewScore").textContent = "辨識參考值 " + Math.round(c.confidence) + " 分";
+    $("ocrReviewScore").textContent = (c.engine || "文字辨識") + " 模型參考分 " + Math.round(c.confidence) + " 非正確率";
     $("ocrReviewScore").classList.toggle("warn", warning);
     $("ocrReviewHint").textContent = warning
       ? "請逐字比對原圖 尤其是數字 正負號 分數 根號與上下標 辨識分數不代表正確率"
       : "請對照原圖檢查內容 文字辨識仍有可能漏字或認錯";
-    $("ocrReviewAlt").textContent = index === 0 ? "查看另一種結果" : "返回原先結果";
+    $("ocrReviewAlt").textContent = index === 0 ? "查看另一模型辨識結果" : "返回建議結果";
     $("ocrReviewPdf").disabled = !(c.pdf && c.pdf.length);
     $("ocrReviewPdf").title = c.pdf ? "下載 OCR 產生的原始可搜尋 PDF" : "本次未產生 PDF";
   }
@@ -2000,13 +2088,25 @@
           if (third.text && !candidates.some((x) => x.text === third.text)) candidates.push(third);
         } catch (e) { console.warn("original image OCR", e); }
       }
+      // Cross-check the hard cases with an independent local neural OCR engine.
+      if ((isMath || candidates.every((x) => x.confidence < 85)) &&
+          !S.lite && !(navigator.connection && navigator.connection.saveData)) {
+        try {
+          OCR.last = Date.now();
+          $("ocrProgText").textContent = "正在進行跨模型校對";
+          if (automatic) status("ocrStatus", "正在用第二套文字模型校對 仍於本機執行");
+          const neural = await recognizeNeural(prepForOCR(img, r, "original"));
+          if (token !== OCR.token) return;
+          if (neural && neural.text && !candidates.some((x) => x.text === neural.text)) candidates.push(neural);
+        } catch (error) { console.warn("Neural comparison unavailable", error); }
+      }
       OCR.running = false; clearInterval(OCR.watch); setOcrBusy(false);
       if (!candidates.some((x) => x.text) && !automatic) { tip.classList.add("warn"); tip.textContent = "沒有辨識到文字 請調整圈選範圍 或用清晰照片再試"; return; }
       closeOverlay($("ocrSheet"));
       await new Promise((resolve) => whenSettled(resolve));
       if (token !== OCR.token || S.image !== imageAtStart) return;
       if (automatic) {
-        const best = candidates.filter((x) => x.text).sort((a, b) => b.score - a.score)[0];
+        const best = sortOcr(candidates, isMath)[0];
         if (best) {
           const input = $("questionText");
           if (!input.value.trim() || input.value === OCR.lastAutoText) {
@@ -2014,7 +2114,7 @@
           }
         }
         try {
-          const regions = automaticVisuals(img, primary);
+          const regions = automaticVisuals(img, candidates.find((x) => x.engine === "PaddleOCR" && x.layout && x.layout.length) || primary);
           S.visuals = S.visuals.filter((v) => !String(v.title || "").startsWith("自動擷取："));
           const room = Math.max(0, 12 - S.visuals.length);
           if (room && regions.length) S.visuals.push(...regions.slice(0, room));
@@ -2028,7 +2128,7 @@
         }
         return;
       }
-      showOcrResult(candidates.filter((x) => x.text), originalPreview);
+      showOcrResult(sortOcr(candidates, isMath).slice(0, 2), originalPreview);
     } catch (e) {
       if (token !== OCR.token) return;
       console.error(e);
