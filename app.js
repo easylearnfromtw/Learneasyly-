@@ -1917,6 +1917,81 @@
     }, 350);
   }
 
+
+  // Candidate colored handwritten marks / highlights / chart ink.
+  // Never silently treat this as an accurate handwriting classification.
+  function detectColoredMarks(source) {
+    const ow = source.naturalWidth || source.width, oh = source.naturalHeight || source.height;
+    if (ow < 60 || oh < 60) return [];
+    const scale = Math.min(1, 880 / Math.max(ow, oh));
+    const width = Math.round(ow * scale), height = Math.round(oh * scale);
+    const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+    const g = canvas.getContext("2d", { willReadFrequently: true });
+    if (!g) return [];
+    g.drawImage(source, 0, 0, width, height);
+    const pixels = g.getImageData(0, 0, width, height).data;
+    const tile = 12, cols = Math.ceil(width / tile), rows = Math.ceil(height / tile);
+    const counts = new Uint16Array(cols * rows); let colored = 0;
+    for (let y = 0; y < height; y += 2) for (let x = 0; x < width; x += 2) {
+      const i = (y * width + x) * 4;
+      const r = pixels[i], green = pixels[i + 1], b = pixels[i + 2];
+      const max = Math.max(r, green, b), min = Math.min(r, green, b);
+      if (max < 58 || max > 245 || max - min < 48) continue;
+      const blue = b > r * 1.32 && b > green * 1.16 && r < 175;
+      const red = r > b * 1.35 && r > green * 1.23 && green < 175;
+      const greenInk = green > r * 1.32 && green > b * 1.15 && b < 160;
+      if (!blue && !red && !greenInk) continue;
+      counts[Math.floor(y / tile) * cols + Math.floor(x / tile)]++; colored++;
+    }
+    const ratio = colored * 4 / (width * height);
+    if (ratio < .0005 || ratio > .16) return [];
+    const active = new Uint8Array(counts.length);
+    for (let i = 0; i < counts.length; i++) if (counts[i] >= 2) active[i] = 1;
+    const spread = new Uint8Array(active.length);
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      if (!active[y * cols + x]) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < cols && ny < rows) spread[ny * cols + nx] = 1;
+      }
+    }
+    const seen = new Uint8Array(spread.length), regions = [];
+    for (let i = 0; i < spread.length; i++) {
+      if (!spread[i] || seen[i]) continue;
+      const queue = [i]; seen[i] = 1;
+      let left = cols, right = 0, top = rows, bottom = 0, ink = 0;
+      for (let j = 0; j < queue.length; j++) {
+        const at = queue[j], x = at % cols, y = Math.floor(at / cols);
+        if (active[at]) {
+          ink += counts[at]; left = Math.min(left,x); right = Math.max(right,x);
+          top = Math.min(top,y); bottom = Math.max(bottom,y);
+        }
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+          const pos = ny * cols + nx;
+          if (spread[pos] && !seen[pos]) { seen[pos] = 1; queue.push(pos); }
+        }
+      }
+      if (left > right || ink < 13) continue;
+      const boxW = (right-left+1)*tile, boxH = (bottom-top+1)*tile;
+      if (boxW < 24 || boxH < 12 || boxW*boxH > width*height*.45) continue;
+      const pad = 18;
+      regions.push({
+        x: Math.max(0,left*tile-pad), y: Math.max(0,top*tile-pad),
+        x1: Math.min(width,(right+1)*tile+pad),
+        y1: Math.min(height,(bottom+1)*tile+pad), ink
+      });
+    }
+    return regions.sort((a,b) => b.ink - a.ink).slice(0,4)
+      .sort((a,b) => a.y - b.y).map((r,i) => ({
+        id: uid(), kind: "illustration", note: "", original: "",
+        title: "自動擷取：疑似彩色筆跡或標記 " + (i+1),
+        image: ocrPhotoPreview(source, { x:r.x/width, y:r.y/height,
+          w:(r.x1-r.x)/width, h:(r.y1-r.y)/height })
+      }));
+  }
+
   // Detect residual ink after masking recognized words.  This is deliberately
   // conservative: a chart's values must never be invented from image pixels.
   function automaticVisuals(source, primary) {
