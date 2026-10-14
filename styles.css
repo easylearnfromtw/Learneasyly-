@@ -1741,3 +1741,5 @@ body{font-synthesis:none}
 .ios-timer-focus{border:1px solid var(--line);border-radius:10px;background:var(--input,var(--paper));color:var(--ink);font:650 12px/1.4 var(--sans);padding:9px 12px;min-height:36px;cursor:pointer}
 .ios-timer-focus:hover,.ios-timer-focus:focus-visible{border-color:var(--hl-ink);outline-offset:2px}
 .ios-timer-focus[hidden]{display:none!important}
+
+.ios-timer-bridge-info[hidden]{display:none!important}
