@@ -1705,3 +1705,6 @@ body{font-synthesis:none}
   .visual-mode{font-size:12px;padding:6px 2px}
   .ocr-stage{margin-bottom:235px}
 }
+
+/* Auto image analysis is automatic not an explicit user-selectable mode */
+#runVisual[hidden], #ocrModes[hidden]{display:none!important}
