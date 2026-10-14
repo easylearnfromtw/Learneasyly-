@@ -275,24 +275,24 @@
                 <div class="tool-row glass-tools" role="toolbar" aria-label="圖片工具">
                   <button type="button" class="tool" id="takePhoto"><svg class="ic"><use href="#i-camera"/></svg><span>相機</span></button>
                   <button type="button" class="tool" id="choosePhoto"><svg class="ic"><use href="#i-image"/></svg><span>相簿</span></button>
-                  <button type="button" class="tool tool-accent" id="runOcr"><svg class="ic"><use href="#i-scan"/></svg><span>轉文字</span></button>
-                  <button type="button" class="tool" id="runVisual"><svg class="ic"><use href="#i-chart"/></svg><span>圖像分區</span></button>
+                  <button type="button" class="tool tool-accent" id="runOcr"><svg class="ic"><use href="#i-scan"/></svg><span>重新辨識</span></button>
+                  <button type="button" class="tool" id="runVisual" hidden><svg class="ic"><use href="#i-chart"/></svg><span>圖像分區</span></button>
                   <button type="button" class="tool" id="rotatePhoto"><svg class="ic"><use href="#i-rotate"/></svg><span>旋轉</span></button>
                   <button type="button" class="tool" id="zoomPhoto"><svg class="ic"><use href="#i-lens"/></svg><span>放大</span></button>
                   <button type="button" class="tool tool-quiet" id="removePhoto"><svg class="ic"><use href="#i-trash"/></svg><span>移除</span></button>
                 </div>
-                <div class="ocr-line"><div class="meter thin" id="ocrMeter" hidden><i id="ocrBar"></i></div><p id="ocrStatus" class="status-note" role="status">文字請圈選辨識 圖表與示圖請使用圖像分區</p></div>
+                <div class="ocr-line"><div class="meter thin" id="ocrMeter" hidden><i id="ocrBar"></i></div><p id="ocrStatus" class="status-note" role="status">圖片上傳後會在背景辨識並整理圖文</p></div>
                 <section class="visual-panel" aria-label="圖像區塊">
                   <div class="visual-panel-head"><strong>圖像區塊</strong><span id="visualCount"></span></div>
-                  <div id="visualList" class="visual-list" aria-live="polite"><p class="visual-empty">尚未擷取圖像 點選圖像分區並圈選圖表或示圖</p></div>
+                  <div id="visualList" class="visual-list" aria-live="polite"><p class="visual-empty">上傳圖片後會自動整理圖表或示圖</p></div>
                 </section>
                 <details class="ocr-help"><summary><svg class="ic"><use href="#i-bulb"/></svg>辨識不準或跑不動時</summary>
                   <ul class="plain-list">
-                    <li>拍照時盡量正對紙面 避免反光與陰影 只圈要辨識的文字</li>
-                    <li>辨識完成後先對照原圖校對 再加入錯題本</li>
+                    <li>拍照時盡量正對紙面 避免反光與陰影 保留完整題目與選項</li>
+                    <li>上傳後文字及圖像在裝置上自動處理 請對照原圖校正辨識結果</li>
                     <li>分數 根號 指數與手寫公式無法保證完整辨識</li>
-                    <li>幾何圖表 統計圖 物理示圖請用圖像分區獨立保存</li>
-                    <li>圖表重製數值需自行核對 不會猜測圖中數據</li>
+                    <li>圖表和示圖會嘗試自動辨識及擷取 無法確定時保留原圖</li>
+                    <li>圖表自動擷取不等於正確重建數據 圖上的數字仍需人工核對</li>
                     <li>iPhone 在照片裡長按題目文字 選取後拷貝 再貼到題目文字</li>
                     <li>Android 在相簿打開照片 用文字選取功能複製後貼上</li>
                     <li>題目很短時 直接打字通常最快</li>
@@ -785,12 +785,12 @@
     <div class="overlay-bg dark" data-close="ocr"></div>
     <div class="ocr-stage" id="ocrStage"><img id="ocrImg" alt="圈選要辨識的題目範圍"><div class="ocr-sel" id="ocrSel"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div></div>
     <div class="ocr-bar glass">
-      <div class="visual-modes" id="ocrModes" role="group" aria-label="選取內容類型">
+      <div class="visual-modes" id="ocrModes" role="group" hidden aria-label="選取內容類型">
         <button type="button" class="visual-mode active" data-ocr-mode="text" aria-pressed="true">文字辨識</button>
         <button type="button" class="visual-mode" data-ocr-mode="chart" aria-pressed="false">圖表重製</button>
         <button type="button" class="visual-mode" data-ocr-mode="illustration" aria-pressed="false">示圖裁切</button>
       </div>
-      <p class="ocr-tip" id="ocrTip">只圈選文字區域 圖表及示圖請切換專用模式</p>
+      <p class="ocr-tip" id="ocrTip">選取題目區域辨識 其他圖像會在上傳後自動整理</p>
       <div class="seg seg-lang" id="ocrLang" role="radiogroup" aria-label="辨識語言">
         <span class="seg-capsule" aria-hidden="true"></span>
         <button type="button" class="seg-item" data-lang="chi_tra+eng">中英</button>
