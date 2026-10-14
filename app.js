@@ -1530,6 +1530,88 @@
     OCR.ready = true; localStorageSet("learneasyly-ocr-quality-v1", "1");
     return OCR.worker;
   }
+
+  /* On-device camera auto-exposure for printed pages.
+   * Sample the 85th-percentile luminance of each tile as the paper background,
+   * instead of treating ink or lines as the background.  Spatially varying
+   * gains flatten shadows without binarizing away vector arrows or minus signs.
+   * Only OCR working canvases are changed; the saved source remains untouched.
+   */
+  function correctPageLighting(imageData, width, height) {
+    const pixels = imageData.data;
+    if (!pixels || width < 16 || height < 16) return { applied: false, reason: "small" };
+    const cols = Math.max(3, Math.min(16, Math.round(width / 230)));
+    const rows = Math.max(3, Math.min(12, Math.round(height / 205)));
+    const hist = new Uint32Array(cols * rows * 32);
+    const count = new Uint32Array(cols * rows);
+    const step = Math.max(2, Math.round(Math.max(width, height) / 620));
+    for (let y = 0; y < height; y += step) {
+      const row = Math.min(rows - 1, Math.floor(y * rows / height));
+      for (let x = 0; x < width; x += step) {
+        const i = (y * width + x) * 4;
+        const lum = (pixels[i] * 77 + pixels[i + 1] * 150 + pixels[i + 2] * 29) >> 8;
+        const cell = row * cols + Math.min(cols - 1, Math.floor(x * cols / width));
+        hist[cell * 32 + (lum >> 3)]++;
+        count[cell]++;
+      }
+    }
+    const backgrounds = new Float32Array(cols * rows);
+    const distribution = [];
+    for (let cell = 0; cell < count.length; cell++) {
+      const goal = Math.max(1, Math.ceil(count[cell] * .86));
+      let sum = 0, val = 248;
+      for (let k = 0; k < 32; k++) {
+        sum += hist[cell * 32 + k];
+        if (sum >= goal) { val = Math.min(255, k * 8 + 4); break; }
+      }
+      backgrounds[cell] = val;
+      if (count[cell] >= 4) distribution.push(val);
+    }
+    if (distribution.length < Math.max(4, cols * rows * .6)) return { applied: false, reason: "few-samples" };
+    distribution.sort((a, b) => a - b);
+    const quantile = (q) => distribution[Math.floor((distribution.length - 1) * q)];
+    const p20 = quantile(.2), median = quantile(.5), p80 = quantile(.8);
+    const shadowFraction = distribution.filter((v) => v < 194).length / distribution.length;
+    const globallyDim = median < 211;
+    const unevenShadow = p80 - p20 > 28 && shadowFraction >= .12;
+    if (!globallyDim && !unevenShadow) return { applied: false, reason: "already-bright",
+      background: median, shadows: false };
+    const xs0 = new Int16Array(width), xs1 = new Int16Array(width), tx = new Float32Array(width);
+    for (let x = 0; x < width; x++) {
+      const fx = (x + .5) * cols / width - .5;
+      const x0 = Math.max(0, Math.min(cols - 1, Math.floor(fx)));
+      xs0[x] = x0; xs1[x] = Math.min(cols - 1, x0 + 1);
+      tx[x] = Math.max(0, Math.min(1, fx - x0));
+    }
+    const target = 233;
+    const strength = .91;
+    let adjusted = 0;
+    for (let y = 0; y < height; y++) {
+      const fy = (y + .5) * rows / height - .5;
+      const y0 = Math.max(0, Math.min(rows - 1, Math.floor(fy)));
+      const y1 = Math.min(rows - 1, y0 + 1);
+      const ty = Math.max(0, Math.min(1, fy - y0));
+      for (let x = 0; x < width; x++) {
+        const x0 = xs0[x], x1 = xs1[x], dx = tx[x];
+        const row0 = backgrounds[y0 * cols + x0] * (1 - dx) + backgrounds[y0 * cols + x1] * dx;
+        const row1 = backgrounds[y1 * cols + x0] * (1 - dx) + backgrounds[y1 * cols + x1] * dx;
+        const bg = row0 * (1 - ty) + row1 * ty;
+        if (bg >= 226) continue;
+        const ratio = Math.min(2.75, target / Math.max(55, bg));
+        const gain = 1 + (ratio - 1) * strength;
+        const i = (y * width + x) * 4;
+        // Change channels by one multiplier: printed gray/black strokes retain
+        // their relative darkness. Avoid hard thresholding of subtle notation.
+        pixels[i] = Math.min(255, Math.round(pixels[i] * gain));
+        pixels[i + 1] = Math.min(255, Math.round(pixels[i + 1] * gain));
+        pixels[i + 2] = Math.min(255, Math.round(pixels[i + 2] * gain));
+        adjusted++;
+      }
+    }
+    return { applied: adjusted > 0, reason: globallyDim ? "dim" : "shadow",
+      background: median, shadows: unevenShadow };
+  }
+
   function prepForOCR(img, r, variant) {
     const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height;
     const sx = Math.max(0, Math.round(r.x * W)), sy = Math.max(0, Math.round(r.y * H));
@@ -1544,8 +1626,11 @@
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
     g.fillStyle = "#fff"; g.fillRect(0, 0, cw, ch);
     g.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
-    if (variant === "original") return c;
+    if (variant === "raw") return c;
     const data = g.getImageData(0, 0, cw, ch), d = data.data;
+    const exposure = correctPageLighting(data, cw, ch);
+    c.autoExposure = exposure;
+    if (variant === "original") { if (exposure.applied) g.putImageData(data, 0, 0); return c; }
     const hist = new Uint32Array(256), gray = new Uint8Array(cw * ch);
     for (let i = 0, p = 0; i < d.length; i += 4, p++) {
       const v = Math.round(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
@@ -2164,6 +2249,11 @@
       const r = full ? { x: 0, y: 0, w: 1, h: 1 } : OCR.rect;
       const originalPreview = ocrPhotoPreview(img, r);
       const canvas = prepForOCR(img, r, "balanced");
+      const autoLight = !!(canvas.autoExposure && canvas.autoExposure.applied);
+      if (autoLight && automatic) {
+        const shadowed = canvas.autoExposure.shadows;
+        status("ocrStatus", shadowed ? "已自動校正暗部和局部陰影 正在辨識" : "偵測到照片偏暗 已自動提亮再辨識");
+      }
       const w = await getWorker(OCR.lang);
       if (token !== OCR.token) return;
       await w.setParameters({ tessedit_pageseg_mode: full ? "3" : "6", preserve_interword_spaces: "1" });
@@ -2229,13 +2319,14 @@
           }
         }
         try {
-          const regions = automaticVisuals(img, candidates.find((x) => x.engine === "PaddleOCR" && x.layout && x.layout.length) || primary);
+          const regions = automaticVisuals(canvas, candidates.find((x) => x.engine === "PaddleOCR" && x.layout && x.layout.length) || primary);
           S.visuals = S.visuals.filter((v) => !String(v.title || "").startsWith("自動擷取："));
           const room = Math.max(0, 12 - S.visuals.length);
           if (room && regions.length) S.visuals.push(...regions.slice(0, room));
           previewVisuals(); scheduleDraft();
           status("ocrStatus", best
-            ? (uncertainMath ? "不同模型讀到的數字有差異 " : "文字已辨識 ") +
+            ? (autoLight ? "暗部已自動調亮 " : "") +
+              (uncertainMath ? "不同模型讀到的數字有差異 " : "文字已辨識 ") +
               (regions.length ? "另擷取 " + Math.min(regions.length, room) + " 個圖像區塊 " : "") +
               "請對照原圖核對公式與數字"
             : "未辨識到可靠文字 原始圖片已保留 請手動輸入");
