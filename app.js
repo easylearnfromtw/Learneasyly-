@@ -149,7 +149,7 @@
 
   /* Mathematical notation guard: it flags risky notation but never invents
      vector arrows or changes segment notation on behalf of the student. */
-  function analyzeMathNotation(value) {
+  function analyzeMathNotation(value, mathContext = false) {
     const t = String(value || "");
     const vector = /\\(?:overrightarrow|overleftarrow|vec)\s*\{|[A-Za-z]\u20D7|[A-Za-z]\u20D6|⃗|⇀|↼/.test(t);
     const segment = /\\(?:overline|bar)\s*\{|[A-Za-z]\u0305/.test(t);
@@ -160,7 +160,7 @@
     const keyword = /向量|內積|外積|投影|正射影|正投影/.test(t);
     const pairs = t.match(/\b(?:[A-Z]{2})\b/g) || [];
     const pointPairs = pairs.length >= 2 && new Set(pairs).size >= 2;
-    const suspicious = !vector && !segment && (keyword || (pointPairs && /[:：=·⋅∙]/.test(t)));
+    const suspicious = !vector && !segment && (keyword || (pointPairs && (mathContext || /[:：=·⋅∙]/.test(t))));
     const labels = [];
     if (vector) labels.push("向量箭頭");
     if (segment) labels.push("線段上劃線");
@@ -173,8 +173,8 @@
       needsReview: suspicious || vector || segment || dot || fraction || radical || script,
       labels };
   }
-  function mathNotationNoticeHTML(value) {
-    const result = analyzeMathNotation(value);
+  function mathNotationNoticeHTML(value, mathContext = false) {
+    const result = analyzeMathNotation(value, mathContext);
     if (!result.needsReview) return "";
     const message = result.suspicious
       ? "文字包含向量或投影線索 但未找到明確箭頭或上劃線 請對照原圖確認"
@@ -188,8 +188,9 @@
   function showMathNotation(fieldId, noticeId, previewId) {
     const input = $(fieldId), notice = $(noticeId), preview = $(previewId);
     if (!input || !notice) return;
-    const report = analyzeMathNotation(input.value);
-    notice.innerHTML = mathNotationNoticeHTML(input.value);
+    const subjectIsMath = /數學/.test(radioVal("subject", ""));
+    const report = analyzeMathNotation(input.value, subjectIsMath);
+    notice.innerHTML = mathNotationNoticeHTML(input.value, subjectIsMath);
     notice.hidden = !report.needsReview;
     if (!preview) return;
     clearTimeout(mathPreviewTimers[previewId]);
@@ -2401,7 +2402,7 @@
     const sec = (t, v, cls) => (v ? '<div class="sheet-sec"><h3>' + esc(t) + '</h3><p class="' + (cls || "") + '">' + esc(v) + "</p></div>" : "");
     $("modalBody").innerHTML = '<div class="q-tags"><span class="tag" style="--sc:' + subjColor(q.subject) + '">' + esc(q.subject) + "</span>" + tag + '<span class="diff" title="難度 ' + lv + '">' + [1, 2, 3, 4, 5].map((k) => '<i class="' + (k <= lv ? "on" : "") + '"></i>').join("") + "</span></div>" +
       (img ? '<img class="sheet-img" alt="原始錯題照片" src="' + img + '" data-zoom="' + esc(q.id) + '">' : "") +
-      mathNotationNoticeHTML(q.question) + sec("題目", q.question || (img || normalizedVisuals(q.visuals).length ? "" : "沒有題目文字")) + visualHTML(q) + sec("答案", q.answer || "還沒有填寫", "rv-key") + sec("詳解", q.solution || "還沒有填寫") + sec("給未來的自己", q.reflection, "rv-note") +
+      mathNotationNoticeHTML(q.question, /數學/.test(q.subject || "")) + sec("題目", q.question || (img || normalizedVisuals(q.visuals).length ? "" : "沒有題目文字")) + visualHTML(q) + sec("答案", q.answer || "還沒有填寫", "rv-key") + sec("詳解", q.solution || "還沒有填寫") + sec("給未來的自己", q.reflection, "rv-note") +
       '<div class="sheet-grid"><div><span>錯誤原因</span><strong>' + esc(q.reason || "未標記") + "</strong></div><div><span>下次複習</span><strong>" + esc(dateShort(q.dueDate) || "未排程") + "</strong></div><div><span>重做次數</span><strong>" + (q.reviewCount || 0) + " 次</strong></div><div><span>連續答對</span><strong>" + (q.streak || 0) + " 次</strong></div><div><span>加入日期</span><strong>" + esc(dateShort(q.createdDate)) + "</strong></div><div><span>題目來源</span><strong>" + esc(q.source || "未填寫") + "</strong></div></div>" +
       '<div class="sheet-actions"><button class="btn btn-primary" data-action="edit" data-id="' + esc(q.id) + '">' + icon("i-edit") + "編輯這題</button>" + (isDue(q) ? "" : '<button class="btn btn-ghost" data-action="queue" data-id="' + esc(q.id) + '">' + icon("i-cards") + "排入今天複習</button>") + '<button class="btn btn-quiet" data-action="delete" data-id="' + esc(q.id) + '">' + icon("i-trash") + "刪除</button></div>";
     $("modalBody").scrollTop = 0;
