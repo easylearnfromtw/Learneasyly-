@@ -53,7 +53,8 @@ private struct StudyTimerText: View {
             if !state.running {
                 Text(displayTime(state.isCountdown ? state.remainingSeconds : state.elapsedSeconds))
             } else if state.isCountdown {
-                Text(timerInterval: Date(timeIntervalSince1970: 0)...state.countDownEnd,
+                Text(timerInterval: state.countDownEnd.addingTimeInterval(
+                         -(state.mode == "25" ? 1500 : 3000))...state.countDownEnd,
                      countsDown: true, showsHours: true)
             } else {
                 Text(state.countUpAnchor, style: .timer)
