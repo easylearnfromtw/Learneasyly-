@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+<defs><radialGradient id="bg" cx=".4" cy=".3" r=".9"><stop stop-color="#273950"/><stop offset=".6" stop-color="#172439"/><stop offset="1" stop-color="#0a111b"/></radialGradient></defs>
+<rect width="800" height="800" fill="url(#bg)"/>
+<g fill="none" stroke="#a9b6ce" opacity=".14" stroke-width="2"><circle cx="400" cy="320" r="263" stroke-dasharray="11 10"/><circle cx="400" cy="320" r="320"/><path d="M0 610L800 180M0 200H800" stroke-dasharray="9 13"/></g>
+<path d="M220 348L560 348" stroke="#fff" stroke-width="12" stroke-linecap="round"/><path d="M220 348L478 90" stroke="#fff" stroke-width="12" stroke-linecap="round"/><path d="M496 124V348" stroke="#fff" stroke-width="10" stroke-dasharray="18 13" stroke-linecap="round"/><path d="M327 242L496 348" stroke="#fff" stroke-width="9" stroke-dasharray="18 13" stroke-linecap="round"/>
+<path d="M220 348L295 273Q327 306 326 348Z" fill="#f8b930"/><path d="M327 242L496 124V348Z" fill="#83afd7" opacity=".47"/>
+<rect x="475" y="75" width="35" height="35" rx="5" transform="rotate(45 492 92)" fill="#f55a64"/>
+<text x="400" y="524" fill="#fff" font-size="116" font-weight="900" text-anchor="middle" font-family="Noto Sans CJK TC,Noto Sans TC,sans-serif">稜角</text>
+<text x="400" y="603" fill="#eaf2fd" font-size="53" text-anchor="middle" letter-spacing="4" font-family="DejaVu Sans,sans-serif">Learn Angle</text>
+<text x="400" y="679" fill="#cedcec" font-size="27" text-anchor="middle" font-family="Noto Sans CJK TC,Noto Sans TC,sans-serif">錯題本 · 讀書計時 · 讀書排程</text>
+</svg>
