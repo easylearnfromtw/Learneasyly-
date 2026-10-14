@@ -1,5 +1,5 @@
 /* Learn Angle offline shell v7: network first for the app and data, cache first for pinned OCR and math files from the CDN. */
-const CACHE = "learneasyly-shell-v10";
+const CACHE = "learneasyly-shell-v11";
 const CDN_CACHE = "learneasyly-cdn-v1";
 const SHELL = ["./", "./index.html", "./styles.css", "./app.js", "./fx.js", "./glass.js", "./cube.js", "./icon.svg", "./icon-maskable.svg", "./manifest.webmanifest", "./privacy.html", "./data/exams.json"];
 const CDN_FILES = /^\/(npm\/(tesseract\.js(-core)?@|katex@)|gh\/tesseract-ocr\/tessdata_fast@)/;
