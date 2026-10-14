@@ -3103,7 +3103,8 @@
   }
   function studyEncouragement() {
     const elapsedMinutes = tmElapsed() / 60000, t = tm();
-    const next = STUDY_CHECKPOINTS.find(p => p.min > elapsedMinutes);
+    const targetMinutes = tmTarget() ? tmTarget() / 60000 : Infinity;
+    const next = STUDY_CHECKPOINTS.find(p => p.min > elapsedMinutes && p.min <= targetMinutes);
     if (tmActive() && !t.run) return "已暫停。休息一下也算把節奏照顧好。";
     if (t.run && next) return "再 " + Math.max(1, Math.ceil(next.min - elapsedMinutes)) + " 分鐘，達到「" + next.label + "」";
     if (t.run) return "已經投入 " + Math.floor(elapsedMinutes) + " 分鐘，記得視狀況安排短暫休息";
@@ -3120,7 +3121,9 @@
     $("studyWeekCount").textContent = studyProgressText(totals.week, weekGoal);
     $("studyTodayBar").style.width = dayP.toFixed(1) + "%";
     $("studyWeekBar").style.width = weekP.toFixed(1) + "%";
+    $("studyTodayBar").parentElement.setAttribute("aria-valuemax", String(dayGoal));
     $("studyTodayBar").parentElement.setAttribute("aria-valuenow", String(Math.min(dayGoal, Math.floor(totals.today))));
+    $("studyWeekBar").parentElement.setAttribute("aria-valuemax", String(weekGoal));
     $("studyWeekBar").parentElement.setAttribute("aria-valuenow", String(Math.min(weekGoal, Math.floor(totals.week))));
     $("studyStreak").textContent = studyDaysStreak() + " 天";
     $("studyRank").textContent = rank.title;
@@ -3283,7 +3286,9 @@
     if (auto) {
       chime(); FX.haptic([30, 80, 30, 80, 40]);
       if (!$("focusMode").hidden) closeOverlay($("focusMode"));
-      celebrate({ seal: mins + "分", title: (t.mode === "25" ? "完成一個番茄" : "完成一段深度專注"), body: "起來走走 喝口水 休息五分鐘再回來", colors: ACH_COLORS[0], stats: [[String(mins), "這次分鐘"], [String(Math.round(minutesOn(today()))), "今天分鐘"]], button: "休息一下" });
+      if (studyMode() !== "quiet")
+        celebrate({ seal: mins + "分", title: (t.mode === "25" ? "完成一個番茄" : "完成一段深度專注"), body: "起來走走 喝口水 休息五分鐘再回來", colors: ACH_COLORS[0], stats: [[String(mins), "這次分鐘"], [String(Math.round(minutesOn(today()))), "今天分鐘"]], button: "休息一下" });
+      else toast("這段專注已完成並存入讀書紀錄", { icon: "i-check" });
     } else {
       if (!$("focusMode").hidden) closeOverlay($("focusMode"));
       toast(pick(FOCUS_MSG).replace("{m}", mins), { icon: "i-timer" });
