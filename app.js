@@ -1252,15 +1252,15 @@
   }
   function processedImage(img, rotation) {
     rotation = rotation || 0;
-    const edge = 1600, scale = Math.min(1, edge / Math.max(img.naturalWidth, img.naturalHeight));
+    const edge = 2300, scale = Math.min(1, edge / Math.max(img.naturalWidth, img.naturalHeight));
     const w = Math.max(1, Math.round(img.naturalWidth * scale)), h = Math.max(1, Math.round(img.naturalHeight * scale));
     const canvas = document.createElement("canvas");
     canvas.width = rotation % 180 ? h : w; canvas.height = rotation % 180 ? w : h;
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.translate(canvas.width / 2, canvas.height / 2); ctx.rotate(rotation * Math.PI / 180); ctx.drawImage(img, -w / 2, -h / 2, w, h);
-    let image = canvas.toDataURL("image/jpeg", 0.8);
-    for (const quality of [0.7, 0.6, 0.5]) { if (image.length <= 700000) break; image = canvas.toDataURL("image/jpeg", quality); }
+    let image = canvas.toDataURL("image/jpeg", 0.85);
+    for (const quality of [0.79, 0.72, 0.65, 0.55]) { if (image.length <= 1100000) break; image = canvas.toDataURL("image/jpeg", quality); }
     return image;
   }
   async function loadPhoto(file) {
@@ -1622,7 +1622,13 @@
       const tolerance = Math.min(a.bbox.y1 - a.bbox.y0, b.bbox.y1 - b.bbox.y0) * .4;
       return Math.abs(ay - by) < tolerance ? a.bbox.x0 - b.bbox.x0 : ay - by;
     });
-    const textValue = cleanOCR(await convertToTraditional(lines.map((l) => l.text).join("\n")));
+    // Tiny figure-point labels (A B C O) near the right margin belong to
+    // the saved diagram, not the prose of the question.
+    const hasProse = lines.some((line) => /[\\u3400-\\u9fff]{3}/.test(line.text));
+    const textLines = hasProse ? lines.filter((line) =>
+      !(line.bbox && line.bbox.x0 > image.width * .67 && /^[A-Z]{1,2}$/.test(line.text))
+    ) : lines;
+    const textValue = cleanOCR(await convertToTraditional(textLines.map((l) => l.text).join("\n")));
     const scores = lines.map((l) => l.score).filter(Number.isFinite);
     const confidence = scores.length ? scores.reduce((a, b) => a+b, 0) / scores.length * 100 : 0;
     const layout = [{ paragraphs: [{ lines: lines.filter((l) => l.bbox).map((l) => ({
@@ -1673,7 +1679,7 @@
       for (const line of (paragraph.lines || [])) for (const word of (line.words || []))
         if (word.bbox && String(word.text || "").trim()) words.push(word.bbox);
     // Without enough reliable text positions a region could just be unrecognized prose.
-    if (words.length < 5 || !primary.ocrWidth || !primary.ocrHeight) return [];
+    if (words.length < 3 || !primary.ocrWidth || !primary.ocrHeight) return [];
     const factor = Math.min(1, 520 / Math.max(srcW, srcH));
     const w = Math.round(srcW * factor), h = Math.round(srcH * factor);
     if (!w || !h) return [];
