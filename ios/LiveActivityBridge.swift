@@ -9,6 +9,9 @@ import WebKit
 final class LiveActivityBridge: NSObject, WKScriptMessageHandler {
     static let messageName = "learnAngleLiveActivity"
     private let sessionID = "learn-angle-study-timer"
+    // Serialize start / pause / reset; requests can otherwise race while
+    // ActivityKit suspends asynchronously between rapid button taps.
+    private var pending: Task<Void, Never>?
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
@@ -17,13 +20,17 @@ final class LiveActivityBridge: NSObject, WKScriptMessageHandler {
               (payload["version"] as? Int) == 1 else { return }
         let event = payload["event"] as? String ?? "sync"
         let active = payload["active"] as? Bool ?? false
-        if !active || event == "finish" || event == "reset" {
-            Task { await endActivities() }
-            return
+        let shouldEnd = !active || event == "finish" || event == "reset"
+        let state = shouldEnd ? nil : makeContentState(payload)
+        let previous = pending
+        pending = Task {
+            if let previous { await previous.value }
+            if shouldEnd {
+                await endActivities()
+            } else if let state, ActivityAuthorizationInfo().areActivitiesEnabled {
+                await upsert(state)
+            }
         }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        let state = makeContentState(payload)
-        Task { await upsert(state) }
     }
 
     private func makeContentState(_ info: [String: Any]) -> StudyActivityAttributes.ContentState {
