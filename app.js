@@ -1497,10 +1497,10 @@
   }
   // Searchable PDFs are produced by the same on-device OCR pass.
   // Wrapping an image in PDF format cannot improve recognition accuracy.
-  async function recognizeWithSearchablePdf(worker, canvas) {
+  async function recognizeWithSearchablePdf(worker, canvas, withPdf = false) {
     let result;
     try {
-      result = await worker.recognize(canvas, { pdfTitle: "Learn Angle 題目辨識" }, { pdf: true, blocks: true });
+      result = await worker.recognize(canvas, { pdfTitle: "Learn Angle 題目辨識" }, { pdf: !!withPdf, blocks: true });
     } catch (err) {
       console.warn("searchable PDF unavailable; keep the regular OCR result", err);
       result = await worker.recognize(canvas, {}, { blocks: true });
@@ -2057,7 +2057,7 @@
       const w = await getWorker(OCR.lang);
       if (token !== OCR.token) return;
       await w.setParameters({ tessedit_pageseg_mode: full ? "3" : "6", preserve_interword_spaces: "1" });
-      const primary = await recognizeWithSearchablePdf(w, canvas);
+      const primary = await recognizeWithSearchablePdf(w, canvas, !automatic);
       if (token !== OCR.token) return;
       const candidates = [primary];
       const isMath = /數學/.test(radioVal("subject", ""));
@@ -2106,7 +2106,12 @@
       await new Promise((resolve) => whenSettled(resolve));
       if (token !== OCR.token || S.image !== imageAtStart) return;
       if (automatic) {
-        const best = sortOcr(candidates, isMath)[0];
+        const ordered = sortOcr(candidates, isMath);
+        const best = ordered[0];
+        const competing = ordered[1];
+        const uncertainMath = isMath && !!competing &&
+          ((best.text.match(/[0-9]+(?:\\.[0-9]+)?/g) || []).join(",") !==
+           (competing.text.match(/[0-9]+(?:\\.[0-9]+)?/g) || []).join(","));
         if (best) {
           const input = $("questionText");
           if (!input.value.trim() || input.value === OCR.lastAutoText) {
@@ -2120,7 +2125,9 @@
           if (room && regions.length) S.visuals.push(...regions.slice(0, room));
           previewVisuals(); scheduleDraft();
           status("ocrStatus", best
-            ? "文字已自動辨識 " + (regions.length ? "並整理 " + Math.min(regions.length, room) + " 個圖像區塊 " : "") + "請對照原圖校正數字與公式"
+            ? (uncertainMath ? "不同模型讀到的數字有差異 " : "文字已辨識 ") +
+              (regions.length ? "另擷取 " + Math.min(regions.length, room) + " 個圖像區塊 " : "") +
+              "請對照原圖核對公式與數字"
             : "未辨識到可靠文字 原始圖片已保留 請手動輸入");
         } catch (e) {
           console.warn("automatic visual extraction", e);
