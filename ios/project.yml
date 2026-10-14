@@ -1,0 +1,45 @@
+name: LearnAngle
+options:
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+targets:
+  LearnAngle:
+    type: application
+    platform: iOS
+    sources:
+      - path: LearnAngleApp.swift
+      - path: LiveActivityBridge.swift
+      - path: StudyActivityAttributes.swift
+    info:
+      path: Generated/AppInfo.plist
+      properties:
+        CFBundleDisplayName: 稜角
+        NSSupportsLiveActivities: true
+        UILaunchScreen: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tw.signwell.learnangle
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - target: LearnAngleWidgets
+        embed: true
+  LearnAngleWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: StudyActivityAttributes.swift
+      - path: StudyActivityWidget.swift
+    info:
+      path: Generated/WidgetInfo.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tw.signwell.learnangle.widgets
+        TARGETED_DEVICE_FAMILY: "1,2"
