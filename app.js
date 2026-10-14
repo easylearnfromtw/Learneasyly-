@@ -146,6 +146,105 @@
   const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (x) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[x]));
   const safeImage = (s) => (typeof s === "string" && /^data:image\/(png|jpeg|webp);base64,/i.test(s) ? s : "");
+
+  /* Mathematical notation guard: it flags risky notation but never invents
+     vector arrows or changes segment notation on behalf of the student. */
+  function analyzeMathNotation(value) {
+    const t = String(value || "");
+    const vector = /\\(?:overrightarrow|overleftarrow|vec)\s*\{|[A-Za-z]\u20D7|[A-Za-z]\u20D6|⃗|⇀|↼/.test(t);
+    const segment = /\\(?:overline|bar)\s*\{|[A-Za-z]\u0305/.test(t);
+    const dot = /\\(?:cdot|bullet)\b|[·⋅∙]/.test(t);
+    const fraction = /\\(?:dfrac|tfrac|frac)\s*\{|[½⅓⅔¼¾]/.test(t);
+    const radical = /\\sqrt\s*\{|√/.test(t);
+    const script = /[_^]\s*(?:\{|[0-9A-Za-z])|[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]/.test(t);
+    const keyword = /向量|內積|外積|投影|正射影|正投影/.test(t);
+    const pairs = t.match(/\b(?:[A-Z]{2})\b/g) || [];
+    const pointPairs = pairs.length >= 2 && new Set(pairs).size >= 2;
+    const suspicious = !vector && !segment && (keyword || (pointPairs && /[:：=·⋅∙]/.test(t)));
+    const labels = [];
+    if (vector) labels.push("向量箭頭");
+    if (segment) labels.push("線段上劃線");
+    if (dot) labels.push("內積或乘點");
+    if (fraction) labels.push("分數");
+    if (radical) labels.push("根號");
+    if (script) labels.push("上標或下標");
+    if (suspicious) labels.unshift("向量或線段記號可能漏辨");
+    return { vector, segment, dot, fraction, radical, script, suspicious,
+      needsReview: suspicious || vector || segment || dot || fraction || radical || script,
+      labels };
+  }
+  function mathNotationNoticeHTML(value) {
+    const result = analyzeMathNotation(value);
+    if (!result.needsReview) return "";
+    const message = result.suspicious
+      ? "文字包含向量或投影線索 但未找到明確箭頭或上劃線 請對照原圖確認"
+      : "已偵測到數學記號 請核對符號位置與方向 文字不會自動補上箭頭";
+    return '<div class="notation-notice" role="note"><strong>數學記號核對</strong><p>' +
+      esc(message) + '</p><div class="notation-tags">' +
+      result.labels.map(label => '<span>' + esc(label) + '</span>').join("") +
+      '</div></div>';
+  }
+  const mathPreviewTimers = Object.create(null);
+  function showMathNotation(fieldId, noticeId, previewId) {
+    const input = $(fieldId), notice = $(noticeId), preview = $(previewId);
+    if (!input || !notice) return;
+    const report = analyzeMathNotation(input.value);
+    notice.innerHTML = mathNotationNoticeHTML(input.value);
+    notice.hidden = !report.needsReview;
+    if (!preview) return;
+    clearTimeout(mathPreviewTimers[previewId]);
+    // Explicit math syntax is previewed with KaTeX; guessed vectors are not.
+    const markup = /\\\(|\\\[|\$[^$]+\$/.test(input.value);
+    preview.hidden = !markup;
+    if (!markup) { preview.textContent = ""; return; }
+    preview.textContent = input.value.slice(0, 500);
+    mathPreviewTimers[previewId] = setTimeout(() => {
+      if (preview.isConnected && !preview.hidden) renderMath(preview);
+    }, 220);
+  }
+  function insertMathNotation(fieldId, kind) {
+    const field = $(fieldId);
+    if (!field) return;
+    const begin = field.selectionStart ?? field.value.length;
+    const end = field.selectionEnd ?? begin;
+    const selected = field.value.slice(begin, end);
+    let replacement, selectPart = "";
+    if (kind === "vector" || kind === "segment") {
+      const raw = selected.trim();
+      if (raw && !/^[A-Za-z]{1,4}$/.test(raw)) {
+        toast("請只選取線段或向量字母 例如 OA 或 AB", { tone: "warn" });
+        field.focus(); return;
+      }
+      const letters = raw || "AB";
+      const command = kind === "vector" ? "overrightarrow" : "overline";
+      replacement = "\\(" + "\\" + command + "{" + letters + "}" + "\\)";
+      if (!raw) selectPart = letters;
+    } else if (kind === "dot") {
+      replacement = " \\(\\cdot\\) ";
+    } else if (kind === "fraction") {
+      replacement = "\\(\\frac{" + (selected.trim() || "a") + "}{b}\\)";
+      if (!selected) selectPart = "a";
+    } else if (kind === "sqrt") {
+      replacement = "\\(\\sqrt{" + (selected.trim() || "x") + "}\\)";
+      if (!selected) selectPart = "x";
+    } else return;
+    field.setRangeText(replacement, begin, end, "end");
+    field.focus();
+    if (selectPart) {
+      const start = begin + replacement.indexOf("{" + selectPart + "}") + 1;
+      field.setSelectionRange(start, start + selectPart.length);
+    }
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  function wireMathNotationTools(containerId, fieldId) {
+    const container = $(containerId);
+    if (!container) return;
+    container.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-math-mark]");
+      if (button) insertMathNotation(fieldId, button.dataset.mathMark);
+    });
+  }
+
   const normalizedVisuals = (arr) => Array.isArray(arr) ? arr.slice(0, 12).map((v) => ({
     id: String(v && v.id || uid()).slice(0, 100),
     kind: v && v.kind === "chart" ? "chart" : "illustration",
@@ -1131,6 +1230,7 @@
   const editorSig = () => { const v = editorSnapshot(); return JSON.stringify([v.question, v.answer, v.solution, v.reflection, v.subject, v.topic, v.source, v.difficulty, v.reason, v.image.length, v.image.slice(-64), JSON.stringify(v.visuals.map((x) => [x.id, x.kind, x.image.length, x.image.slice(-40), x.title, x.chartData, x.xAxis, x.yAxis]))]); };
   function scheduleDraft() {
     updateComplete();
+    showMathNotation("questionText", "questionMathNotice", "questionMathPreview");
     clearTimeout(saveTimer);
     if (editorSig() !== lastSig) setSaveState("pending");
     saveTimer = setTimeout(autoSave, 650);
@@ -1205,7 +1305,8 @@
   }
   function fillEditor(d) {
     releaseOcrSource(); S.image = safeImage(d.image); S.visuals = normalizedVisuals(d.visuals); previewImage(); previewVisuals();
-    $("questionText").value = d.question || ""; $("answerText").value = d.answer || ""; $("solutionText").value = d.solution || "";
+    $("questionText").value = d.question || "";
+    showMathNotation("questionText", "questionMathNotice", "questionMathPreview"); $("answerText").value = d.answer || ""; $("solutionText").value = d.solution || "";
     $("reflectionText").value = d.reflection || ""; $("topicField").value = d.topic || ""; $("sourceField").value = d.source || "";
     setRadio("subject", d.subject || firstSubject()); setRadio("reason", d.reason || "觀念不清"); setRadio("difficulty", Number(d.difficulty) || 3);
     updateLevel(); updateTopics(); updateComplete();
@@ -1240,6 +1341,7 @@
     lastSig = ""; S.savedAt = null;
     setRadio("subject", firstSubject()); setRadio("reason", "觀念不清"); setRadio("difficulty", 3);
     setEditorMode(false); updateLevel(); updateTopics(); updateComplete();
+    showMathNotation("questionText", "questionMathNotice", "questionMathPreview");
     status("ocrStatus", OCR_DEFAULT_STATUS); status("saveStatus", "");
     $("ocrMeter").hidden = true; $("galleryInput").value = ""; $("cameraInput").value = "";
     if (UI.level) UI.level.sync();
@@ -2029,6 +2131,7 @@
     const c = OCR.candidates[index]; if (!c) return;
     OCR.selected = index;
     $("ocrReviewText").value = c.text;
+    showMathNotation("ocrReviewText", "ocrMathNotice", "ocrMathPreview");
     const warning = c.confidence < 80 || /數學/.test(radioVal("subject", ""));
     $("ocrReviewScore").textContent = (c.engine || "文字辨識") + " 模型參考分 " + Math.round(c.confidence) + " 非正確率";
     $("ocrReviewScore").classList.toggle("warn", warning);
@@ -2163,12 +2266,16 @@
     let replace = true;
     if (current) replace = await ask({ title: "要怎麼放入辨識結果", body: "題目已經有內容 你可以取代原本文字 或接在後面", ok: "取代原本文字", cancel: "接在後面", icon: "i-scan" });
     $("questionText").value = replace || !current ? text : current + "\n" + text;
+    showMathNotation("questionText", "questionMathNotice", "questionMathPreview");
     scheduleDraft();
     status("ocrStatus", "已確認辨識內容並自動儲存 數學符號請再對照原圖");
     toast("已加入題目文字", { icon: "i-scan" });
     FX.haptic(10);
   }
   function wireOcr() {
+    wireMathNotationTools("ocrMathTools", "ocrReviewText");
+    $("ocrReviewText").addEventListener("input", () =>
+      showMathNotation("ocrReviewText", "ocrMathNotice", "ocrMathPreview"));
     const stage = $("ocrStage"), sel = $("ocrSel");
     let drag = null;
     const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -2294,7 +2401,7 @@
     const sec = (t, v, cls) => (v ? '<div class="sheet-sec"><h3>' + esc(t) + '</h3><p class="' + (cls || "") + '">' + esc(v) + "</p></div>" : "");
     $("modalBody").innerHTML = '<div class="q-tags"><span class="tag" style="--sc:' + subjColor(q.subject) + '">' + esc(q.subject) + "</span>" + tag + '<span class="diff" title="難度 ' + lv + '">' + [1, 2, 3, 4, 5].map((k) => '<i class="' + (k <= lv ? "on" : "") + '"></i>').join("") + "</span></div>" +
       (img ? '<img class="sheet-img" alt="原始錯題照片" src="' + img + '" data-zoom="' + esc(q.id) + '">' : "") +
-      sec("題目", q.question || (img || normalizedVisuals(q.visuals).length ? "" : "沒有題目文字")) + visualHTML(q) + sec("答案", q.answer || "還沒有填寫", "rv-key") + sec("詳解", q.solution || "還沒有填寫") + sec("給未來的自己", q.reflection, "rv-note") +
+      mathNotationNoticeHTML(q.question) + sec("題目", q.question || (img || normalizedVisuals(q.visuals).length ? "" : "沒有題目文字")) + visualHTML(q) + sec("答案", q.answer || "還沒有填寫", "rv-key") + sec("詳解", q.solution || "還沒有填寫") + sec("給未來的自己", q.reflection, "rv-note") +
       '<div class="sheet-grid"><div><span>錯誤原因</span><strong>' + esc(q.reason || "未標記") + "</strong></div><div><span>下次複習</span><strong>" + esc(dateShort(q.dueDate) || "未排程") + "</strong></div><div><span>重做次數</span><strong>" + (q.reviewCount || 0) + " 次</strong></div><div><span>連續答對</span><strong>" + (q.streak || 0) + " 次</strong></div><div><span>加入日期</span><strong>" + esc(dateShort(q.createdDate)) + "</strong></div><div><span>題目來源</span><strong>" + esc(q.source || "未填寫") + "</strong></div></div>" +
       '<div class="sheet-actions"><button class="btn btn-primary" data-action="edit" data-id="' + esc(q.id) + '">' + icon("i-edit") + "編輯這題</button>" + (isDue(q) ? "" : '<button class="btn btn-ghost" data-action="queue" data-id="' + esc(q.id) + '">' + icon("i-cards") + "排入今天複習</button>") + '<button class="btn btn-quiet" data-action="delete" data-id="' + esc(q.id) + '">' + icon("i-trash") + "刪除</button></div>";
     $("modalBody").scrollTop = 0;
@@ -3402,6 +3509,7 @@
       loadPhoto(it.getAsFile()); toast("已貼上截圖", { icon: "i-image" });
     });
     $("requestPersist").addEventListener("click", requestPersist);
+    wireMathNotationTools("questionMathTools", "questionText");
     ["questionText", "answerText", "solutionText", "reflectionText", "topicField", "sourceField"].forEach((n) => $(n).addEventListener("input", scheduleDraft));
     $("subjectChips").addEventListener("change", () => { updateTopics(); scheduleDraft(); });
     $("reasonChips").addEventListener("change", scheduleDraft);
