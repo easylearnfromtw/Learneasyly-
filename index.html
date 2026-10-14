@@ -290,7 +290,7 @@
                   <ul class="plain-list">
                     <li>拍照時盡量正對紙面 避免反光與陰影 保留完整題目與選項</li>
                     <li>上傳後文字及圖像在裝置上自動處理 請對照原圖校正辨識結果</li>
-                    <li>分數 根號 指數與手寫公式無法保證完整辨識</li>
+                    <li>數學題會嘗試多模型交叉辨識 仍請核對負號 比例 向量與根號</li>
                     <li>圖表和示圖會嘗試自動辨識及擷取 無法確定時保留原圖</li>
                     <li>圖表自動擷取不等於正確重建數據 圖上的數字仍需人工核對</li>
                     <li>iPhone 在照片裡長按題目文字 選取後拷貝 再貼到題目文字</li>
@@ -790,7 +790,7 @@
         <button type="button" class="visual-mode" data-ocr-mode="chart" aria-pressed="false">圖表重製</button>
         <button type="button" class="visual-mode" data-ocr-mode="illustration" aria-pressed="false">示圖裁切</button>
       </div>
-      <p class="ocr-tip" id="ocrTip">選取題目區域辨識 其他圖像會在上傳後自動整理</p>
+      <p class="ocr-tip" id="ocrTip">題目文字由本機模型辨識 數學公式仍需核對</p>
       <div class="seg seg-lang" id="ocrLang" role="radiogroup" aria-label="辨識語言">
         <span class="seg-capsule" aria-hidden="true"></span>
         <button type="button" class="seg-item" data-lang="chi_tra+eng">中英</button>
