@@ -1743,3 +1743,48 @@ body{font-synthesis:none}
 .ios-timer-focus[hidden]{display:none!important}
 
 .ios-timer-bridge-info[hidden]{display:none!important}
+
+/* Study-time motivation — quiet progress feedback, no extra overlays during study. */
+.study-motivation{display:grid;gap:15px;margin-top:14px}
+.study-motivation-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.study-motivation-header h2{margin:2px 0 5px;font-size:clamp(20px,2.4vw,26px);font-weight:750;letter-spacing:-.035em}
+.study-motivation-header .muted{font-size:12px;line-height:1.7;max-width:520px;margin:0}
+.study-motivation-eyebrow{margin:0;color:var(--ink-3);font-size:10px;font-weight:800;letter-spacing:.12em}
+.study-rank-pill{border:1px solid var(--line);border-radius:13px;background:var(--input,var(--paper));min-width:100px;padding:9px 13px;display:grid;gap:3px;text-align:center;white-space:nowrap}
+.study-rank-pill span{font-size:10px;color:var(--ink-3)}
+.study-rank-pill strong{font-size:15px;color:var(--ink);font-weight:800}
+.study-goal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.study-goal{border:1px solid var(--line);border-radius:16px;padding:15px 16px 13px;background:var(--input,var(--paper));display:grid;gap:10px;min-width:0}
+.study-goal-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.study-goal-top span{color:var(--ink-2);font-size:13px;font-weight:650}
+.study-goal-top strong{font-size:15px;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+.study-goal-track{height:9px;background:var(--line);border-radius:100px;overflow:hidden}
+.study-goal-track i{height:100%;width:0%;display:block;border-radius:100px;background:#4f8b74;transition:width .6s ease}
+.study-goal-week i{background:#7b78bb}
+.study-goal-control{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--ink-3);font-size:12px;font-weight:600}
+.study-goal-control select,.study-reward-mode select{background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:7px 10px;min-height:36px;max-width:100%;font:600 12px var(--sans)}
+.study-motivation-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.study-motivation-stats>div{display:grid;gap:4px;padding:12px 14px;border-radius:13px;background:var(--input,var(--paper));border:1px solid var(--line)}
+.study-motivation-stats span{font-size:11px;color:var(--ink-3);font-weight:650}
+.study-motivation-stats strong{font-size:22px;font-weight:790;color:var(--ink);font-variant-numeric:tabular-nums}
+.study-motivation-stats small{font-size:11px;color:var(--ink-3);line-height:1.5}
+.study-provisional{margin:-5px 0 0;color:var(--ink-3);font-size:11px;line-height:1.5}
+.study-provisional[hidden]{display:none!important}
+.study-session-motivation{position:relative;overflow:hidden;padding:13px 15px;border-radius:13px;border:1px solid var(--line);background:var(--paper);display:grid;gap:5px}
+.study-session-label{margin:0;color:var(--ink-3);font-size:11px;letter-spacing:.035em;font-weight:750}
+.study-session-motivation strong{font-weight:750;color:var(--ink);font-size:15px}
+.study-session-motivation p:last-child{margin:0;color:var(--ink-2);font-size:12px;line-height:1.65}
+.study-reward-mode{display:flex;justify-content:flex-end;align-items:center;gap:12px;color:var(--ink-3);font-size:12px;font-weight:650}
+.focus-motivation{color:rgba(255,255,255,.68);font-size:13px;line-height:1.6;max-width:340px;text-align:center;margin:0 auto 18px}
+@media(max-width:700px){
+ .study-motivation{gap:12px}
+ .study-motivation-header{align-items:center}
+ .study-goal-grid{gap:8px}
+ .study-goal{padding:12px 11px}
+ .study-goal-top{display:grid;gap:2px}
+ .study-goal-top strong{font-size:13px}
+ .study-goal-control{font-size:11px}
+ .study-goal-control select{font-size:11px;max-width:120px;padding:7px 5px}
+}
+@media(max-width:380px){.study-goal-grid{grid-template-columns:1fr}.study-rank-pill{min-width:80px;padding:8px}.study-motivation-header h2{font-size:19px}}
+@media(prefers-reduced-motion:reduce){.study-goal-track i{transition:none}}
