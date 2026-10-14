@@ -19,6 +19,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Prepare Python image build
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/branding-requirements.txt
+      - name: Install CJK fonts for social thumbnails
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk
+      - name: Generate raster icons and share previews
+        run: |
+          python -m pip install -r scripts/branding-requirements.txt
+          python scripts/build-brand-assets.py
       - name: Check app syntax and UI links
         run: |
           node --check app.js
