@@ -315,7 +315,8 @@
     chartType: ["line", "bar", "scatter"].includes(v && v.chartType) ? v.chartType : "line",
     xAxis: String(v && v.xAxis || "").slice(0, 40),
     yAxis: String(v && v.yAxis || "").slice(0, 40),
-    chartData: String(v && v.chartData || "").slice(0, 2500)
+    chartData: String(v && v.chartData || "").slice(0, 2500),
+    note: String(v && v.note || "").slice(0, 1500)
   })).filter((v) => v.image) : [];
   function visualHTML(q) {
     const list = normalizedVisuals(q && q.visuals);
@@ -323,6 +324,7 @@
     return '<div class="visual-read"><h3>圖像區塊</h3><div class="visual-read-grid">' + list.map((v) =>
       '<figure class="visual-read-item"><img src="' + v.image + '" alt="' + esc(v.kind === "chart" ? "重製圖表" : "示意圖片") + '" data-zoom="visual">' +
       '<figcaption>' + esc(v.title || (v.kind === "chart" ? "重製圖表" : "示意圖片")) + '</figcaption>' +
+      (v.note ? '<p class="visual-note">筆跡備註：' + esc(v.note) + '</p>' : '') +
       (v.kind === "chart" && v.original ? '<details><summary>對照原裁圖</summary><img src="' + v.original + '" alt="原圖圖表" data-zoom="visual"></details>' : "") + '</figure>'
     ).join("") + "</div></div>";
   }
@@ -1288,7 +1290,7 @@
      有題目文字或照片時 停止輸入不到一秒就寫入錯題本
      新題目第一次儲存就會出現在資料庫 之後的修改都直接更新同一題 */
   let saveTimer = null, saving = null, savePending = false, lastSig = "";
-  const editorSig = () => { const v = editorSnapshot(); return JSON.stringify([v.question, v.answer, v.solution, v.reflection, v.subject, v.topic, v.source, v.difficulty, v.reason, v.image.length, v.image.slice(-64), JSON.stringify(v.visuals.map((x) => [x.id, x.kind, x.image.length, x.image.slice(-40), x.title, x.chartData, x.xAxis, x.yAxis]))]); };
+  const editorSig = () => { const v = editorSnapshot(); return JSON.stringify([v.question, v.answer, v.solution, v.reflection, v.subject, v.topic, v.source, v.difficulty, v.reason, v.image.length, v.image.slice(-64), JSON.stringify(v.visuals.map((x) => [x.id, x.kind, x.image.length, x.image.slice(-40), x.title, x.chartData, x.xAxis, x.yAxis, x.note]))]); };
   function scheduleDraft() {
     updateComplete();
     showMathNotation("questionText", "questionMathNotice", "questionMathPreview");
@@ -1394,6 +1396,7 @@
   function resetEditor() {
     clearTimeout(OCR.autoTimer);
     if (OCR.running) stopOcr(true);
+    OCR.annotationCrop = false;
     OCR.lastAutoText = "";
     clearTimeout(saveTimer); saveTimer = null; savePending = false;
     if (S.db) { dbRequest("config", "delete", "editorDraft").catch(() => {}); dbRequest("config", "delete", "editorSession").catch(() => {}); }
@@ -2108,7 +2111,9 @@
       '<article class="visual-card"><img src="' + v.image + '" alt="' + esc(v.kind === "chart" ? "圖表" : "示圖") + '">' +
       '<div class="visual-card-info"><strong>' + esc(v.title || (v.kind === "chart" ? "重製圖表" : "裁切示圖")) + '</strong><small>' +
       (v.kind === "chart" ? (v.chartData ? "圖表數據可再編輯" : "圖表原圖已獨立保存 未推測數值") : "示圖已獨立保存 不混入題目文字") +
-      '</small><div class="visual-card-actions">' +
+      '</small>' +
+      (/筆跡|標記/.test(v.title) ? '<label class="ink-note-label">手寫內容或標記備註<textarea rows="2" data-visual-note="' + esc(v.id) + '" placeholder="核對原圖後自行填入 不會混進印刷題目">' + esc(v.note || "") + '</textarea></label>' : "") +
+      '<div class="visual-card-actions">' +
       (v.kind === "chart" && v.chartData ? '<button type="button" data-visual-edit="' + esc(v.id) + '">編輯圖表</button>' : "") +
       '<button type="button" data-visual-remove="' + esc(v.id) + '">移除區塊</button></div></div></article>'
     ).join("") : '<p class="visual-empty">上傳圖片後會在背景辨識圖表及示圖 若未偵測到可疑圖像則保留完整原圖</p>';
@@ -2252,8 +2257,8 @@
     try {
       const crop = await cropSelectedRegion();
       if (OCR.mode === "illustration") {
-        if (addVisual({ id: uid(), kind: "illustration", image: crop, original: "", title: "裁切示圖" })) {
-          closeOverlay($("ocrSheet")); status("ocrStatus", "示圖已獨立擷取並自動儲存"); toast("已儲存示圖 不會混入文字");
+        if (addVisual({ id: uid(), kind: "illustration", image: crop, original: "", note: "", title: OCR.annotationCrop ? "手寫筆跡（人工圈選）" : "裁切示圖" })) {
+          closeOverlay($("ocrSheet")); status("ocrStatus", OCR.annotationCrop ? "手寫筆跡裁圖已獨立保存 請核對" : "示圖已獨立擷取並自動儲存"); toast("已儲存裁圖 不會混入印刷題目"); OCR.annotationCrop = false;
         }
       } else {
         closeOverlay($("ocrSheet"));
@@ -2291,6 +2296,20 @@
   }
   function wireVisuals() {
     $("runVisual").addEventListener("click", () => openOcr("chart"));
+    $("runInkCrop").addEventListener("click", () => {
+      OCR.annotationCrop = true;
+      openOcr("illustration");
+      $("ocrTip").textContent = "圈選黑筆或無法分離的手寫內容 僅保存裁圖 不自動加入題目";
+      $("ocrGo").textContent = "保存筆跡裁圖";
+    });
+    $("visualList").addEventListener("input", (e) => {
+      const field = e.target.closest("[data-visual-note]");
+      if (!field) return;
+      const figure = S.visuals.find((v) => v.id === field.dataset.visualNote);
+      if (!figure) return;
+      figure.note = field.value.slice(0, 1500);
+      scheduleDraft();
+    });
     $("visualList").addEventListener("click", (e) => {
       const remove = e.target.closest("[data-visual-remove]");
       const edit = e.target.closest("[data-visual-edit]");
@@ -2320,6 +2339,7 @@
     all("#ocrLang .seg-item").forEach((b) => { b.disabled = on; });
   }
   function openOcr(mode) {
+    if (mode !== "illustration") OCR.annotationCrop = false;
     if (!S.image) { toast("請先加入圖片", { tone: "warn" }); return; }
     OCR.lang = langForSubject(radioVal("subject", ""));
     all("#ocrLang .seg-item").forEach((b) => b.classList.toggle("active", b.dataset.lang === OCR.lang));
@@ -2454,14 +2474,17 @@
         }
         try {
           const regions = automaticVisuals(canvas, candidates.find((x) => x.engine === "PaddleOCR" && x.layout && x.layout.length) || primary);
-          S.visuals = S.visuals.filter((v) => !String(v.title || "").startsWith("自動擷取："));
+          const inkRegions = detectColoredMarks(img);
+          S.visuals = S.visuals.filter((v) => !String(v.title || "").startsWith("自動擷取：") || !!String(v.note || "").trim());
           const room = Math.max(0, 12 - S.visuals.length);
-          if (room && regions.length) S.visuals.push(...regions.slice(0, room));
+          if (room) S.visuals.push(...inkRegions.slice(0, Math.min(4, room)),
+            ...regions.slice(0, Math.max(0, room - Math.min(4, inkRegions.length))));
           previewVisuals(); scheduleDraft();
           status("ocrStatus", best
             ? (autoLight ? "暗部已自動調亮 " : "") +
               (uncertainMath ? "不同模型的" + mathConflicts.join("、") + "有差異 " : "文字已辨識 ") +
-              (regions.length ? "另擷取 " + Math.min(regions.length, room) + " 個圖像區塊 " : "") +
+              (inkRegions.length ? "已獨立保留疑似彩色筆跡 " : "") +
+              (regions.length ? "已分析圖像區塊 " : "") +
               "請對照原圖核對公式與數字"
             : "未辨識到可靠文字 原始圖片已保留 請手動輸入");
         } catch (e) {
