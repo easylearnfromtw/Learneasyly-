@@ -22,7 +22,7 @@
 <path d="M286 353L367 410" stroke="#fff" stroke-width="6" stroke-dasharray="14 11" stroke-linecap="round"/>
 <rect x="347" y="250" width="24" height="24" rx="3" transform="rotate(45 359 262)" fill="#fa5666"/>
 <text x="495" y="294" fill="#fff" font-size="82" font-weight="900" font-family="Noto Sans CJK TC,Noto Sans TC, sans-serif" letter-spacing="-2">稜角</text>
-<text x="742" y="294" fill="#f6f8ff" font-size="74" font-weight="650" font-family="DejaVu Sans,sans-serif" letter-spacing="-4">Learn Angle</text>
+<text x="714" y="294" fill="#f6f8ff" font-size="64" font-weight="650" font-family="DejaVu Sans,sans-serif" letter-spacing="-3">Learn Angle</text>
 <path d="M497 332H1124" stroke="#8ba8c6" stroke-opacity=".23" stroke-width="2"/>
 <text x="499" y="390" fill="#d5e2f0" font-size="31" font-weight="600" font-family="Noto Sans CJK TC,Noto Sans TC,sans-serif">錯題本</text>
 <text x="645" y="390" fill="#f9c85f" font-size="30">×</text>
