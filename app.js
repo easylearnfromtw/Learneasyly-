@@ -1230,6 +1230,9 @@
     setTab("add"); toast("已還原草稿");
   }
   function resetEditor() {
+    clearTimeout(OCR.autoTimer);
+    if (OCR.running) stopOcr(true);
+    OCR.lastAutoText = "";
     clearTimeout(saveTimer); saveTimer = null; savePending = false;
     if (S.db) { dbRequest("config", "delete", "editorDraft").catch(() => {}); dbRequest("config", "delete", "editorSession").catch(() => {}); }
     delete S.cfg.editorDraft; delete S.cfg.editorSession;
@@ -1561,6 +1564,7 @@
   // A new photo invalidates any in-flight recognition result so earlier photos cannot overwrite edits.
   function queueAutoScan() {
     clearTimeout(OCR.autoTimer);
+    if (OCR.running) stopOcr(true);
     OCR.token++;
     const sourceKey = S.image;
     if (!sourceKey) return;
@@ -3265,7 +3269,7 @@
     $("takePhoto").addEventListener("click", () => $("cameraInput").click());
     $("galleryInput").addEventListener("change", (e) => loadPhoto(e.target.files[0]));
     $("cameraInput").addEventListener("change", (e) => loadPhoto(e.target.files[0]));
-    $("removePhoto").addEventListener("click", () => { if (!S.image) return; clearTimeout(OCR.autoTimer); if (OCR.running) stopOcr(true); releaseOcrSource(); S.image = ""; S.visuals = S.visuals.filter(v => !String(v.title || "").startsWith("自動擷取：")); previewImage(); previewVisuals(); scheduleDraft(); status("ocrStatus", "已移除圖片"); });
+    $("removePhoto").addEventListener("click", () => { if (!S.image) return; clearTimeout(OCR.autoTimer); if (OCR.running) stopOcr(true); OCR.lastAutoText = ""; releaseOcrSource(); S.image = ""; S.visuals = S.visuals.filter(v => !String(v.title || "").startsWith("自動擷取：")); previewImage(); previewVisuals(); scheduleDraft(); status("ocrStatus", "已移除圖片"); });
     $("runOcr").addEventListener("click", () => { if (!S.image || OCR.running) return; OCR.lang = langForSubject(radioVal("subject", "")); runOcr(true, true); });
     wireOcr(); wireVisuals();
     $("rotatePhoto").addEventListener("click", rotatePhoto);
