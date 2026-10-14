@@ -1270,8 +1270,12 @@
       url = URL.createObjectURL(file);
       const img = new Image();
       await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = () => reject(new Error("decode")); img.src = url; });
-      releaseOcrSource(); S.image = processedImage(img); rememberOcrSource(img); previewImage(); scheduleDraft();
-      status("ocrStatus", "圖片已加入並自動儲存 可以按轉文字圈選題目辨識");
+      if (OCR.running) stopOcr(true);
+      releaseOcrSource(); S.image = processedImage(img); rememberOcrSource(img);
+      S.visuals = S.visuals.filter((v) => !String(v.title || "").startsWith("自動擷取："));
+      previewImage(); previewVisuals(); scheduleDraft();
+      status("ocrStatus", "圖片已加入 正在背景辨識文字與圖像");
+      queueAutoScan();
       FX.haptic(8);
     } catch (e) { status("ocrStatus", "這張圖片無法讀取 請改用 JPG 或 PNG", true); }
     finally { if (url) URL.revokeObjectURL(url); }
@@ -1292,7 +1296,7 @@
       S.image = processedImage(img, 90);
       releaseOcrSource();
       if (rotated) { OCR.source = rotated; OCR.sourceReady = true; }
-      previewImage(); scheduleDraft();
+      previewImage(); scheduleDraft(); queueAutoScan();
     } catch (e) { toast("無法旋轉這張照片", { tone: "warn" }); }
   }
   /* 高精度文字辨識 只在目前編輯工作階段保留高畫質來源
@@ -1303,7 +1307,7 @@
     worker: null, wLang: "", running: false, token: 0, idle: null,
     last: 0, watch: null, preloading: null, ready: false,
     mstate: "idle", mpct: 0, statusText: "",
-    source: null, sourceReady: false, candidates: [], selected: 0, mode: "text"
+    source: null, sourceReady: false, candidates: [], selected: 0, mode: "text", autoTimer: null, lastAutoText: ""
   };
   let ocrLoading = null;
   function releaseOcrSource() {
@@ -1491,14 +1495,17 @@
   async function recognizeWithSearchablePdf(worker, canvas) {
     let result;
     try {
-      result = await worker.recognize(canvas, { pdfTitle: "Learn Angle 題目辨識" }, { pdf: true });
+      result = await worker.recognize(canvas, { pdfTitle: "Learn Angle 題目辨識" }, { pdf: true, blocks: true });
     } catch (err) {
       console.warn("searchable PDF unavailable; keep the regular OCR result", err);
-      result = await worker.recognize(canvas);
+      result = await worker.recognize(canvas, {}, { blocks: true });
     }
     const recognized = ocrQuality(result);
     const bytes = result && result.data && result.data.pdf;
     recognized.pdf = bytes && bytes.length ? bytes : null;
+    recognized.layout = Array.isArray(result && result.data && result.data.blocks) ? result.data.blocks : [];
+    recognized.ocrWidth = canvas.width;
+    recognized.ocrHeight = canvas.height;
     return recognized;
   }
   function downloadableOcrPdf() {
@@ -1548,7 +1555,129 @@
     return c.toDataURL("image/jpeg", 0.82);
   }
 
-  /* 圖文分區：文字走 OCR 圖表重製使用人工校正的數值 示圖只裁切 */
+
+  // Uploads are processed on the current device without sending images to a paid API.
+  // A new photo invalidates any in-flight recognition result so earlier photos cannot overwrite edits.
+  function queueAutoScan() {
+    clearTimeout(OCR.autoTimer);
+    OCR.token++;
+    const sourceKey = S.image;
+    if (!sourceKey) return;
+    OCR.autoTimer = setTimeout(() => {
+      if (S.image !== sourceKey) return;
+      OCR.lang = langForSubject(radioVal("subject", ""));
+      runOcr(true, true);
+    }, 350);
+  }
+
+  // Detect residual ink after masking recognized words.  This is deliberately
+  // conservative: a chart's values must never be invented from image pixels.
+  function automaticVisuals(source, primary) {
+    const srcW = source.naturalWidth || source.width, srcH = source.naturalHeight || source.height;
+    const blocks = Array.isArray(primary.layout) ? primary.layout : [];
+    const words = [];
+    for (const block of blocks) for (const paragraph of (block.paragraphs || []))
+      for (const line of (paragraph.lines || [])) for (const word of (line.words || []))
+        if (word.bbox && String(word.text || "").trim()) words.push(word.bbox);
+    // Without enough reliable text positions a region could just be unrecognized prose.
+    if (words.length < 5 || !primary.ocrWidth || !primary.ocrHeight) return [];
+    const factor = Math.min(1, 520 / Math.max(srcW, srcH));
+    const w = Math.round(srcW * factor), h = Math.round(srcH * factor);
+    if (!w || !h) return [];
+    const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return [];
+    ctx.drawImage(source, 0, 0, w, h);
+    const pixels = ctx.getImageData(0, 0, w, h).data;
+    const mask = new Uint8Array(w * h);
+    for (const b of words) {
+      const x0 = Math.max(0, Math.floor(b.x0 / primary.ocrWidth * w) - 3);
+      const y0 = Math.max(0, Math.floor(b.y0 / primary.ocrHeight * h) - 3);
+      const x1 = Math.min(w, Math.ceil(b.x1 / primary.ocrWidth * w) + 3);
+      const y1 = Math.min(h, Math.ceil(b.y1 / primary.ocrHeight * h) + 3);
+      for (let y = y0; y < y1; y++) mask.fill(1, y * w + x0, y * w + x1);
+    }
+    const cell = 8, cols = Math.ceil(w / cell), rows = Math.ceil(h / cell);
+    const counts = new Uint16Array(cols * rows);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const p = y * w + x; if (mask[p]) continue;
+      const i = p * 4, lum = .299 * pixels[i] + .587 * pixels[i + 1] + .114 * pixels[i + 2];
+      if (lum < 145) counts[Math.floor(y / cell) * cols + Math.floor(x / cell)]++;
+    }
+    const occupied = new Uint8Array(cols * rows);
+    for (let i = 0; i < counts.length; i++) if (counts[i] >= 3) occupied[i] = 1;
+    const linked = new Uint8Array(occupied.length);
+    for (let cy = 0; cy < rows; cy++) for (let cx = 0; cx < cols; cx++) {
+      if (!occupied[cy * cols + cx]) continue;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = cx + dx, ny = cy + dy;
+        if (nx >= 0 && ny >= 0 && nx < cols && ny < rows) linked[ny * cols + nx] = 1;
+      }
+    }
+    const seen = new Uint8Array(linked.length), regions = [];
+    for (let i = 0; i < linked.length; i++) {
+      if (!linked[i] || seen[i]) continue;
+      let left = cols, top = rows, right = 0, bottom = 0, ink = 0;
+      const queue = [i]; seen[i] = 1;
+      for (let q = 0; q < queue.length; q++) {
+        const at = queue[q], x = at % cols, y = Math.floor(at / cols);
+        left = Math.min(left, x); top = Math.min(top, y);
+        right = Math.max(right, x); bottom = Math.max(bottom, y);
+        ink += counts[at];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+          const ni = ny * cols + nx;
+          if (linked[ni] && !seen[ni]) { seen[ni] = 1; queue.push(ni); }
+        }
+      }
+      const rw = (right - left + 1) * cell, rh = (bottom - top + 1) * cell;
+      const frac = rw * rh / (w * h);
+      if (rw < w * .20 || rh < h * .12 || frac < .025 || frac > .72 || ink < 60) continue;
+      const pad = cell * 2;
+      regions.push({ x0: Math.max(0, left * cell - pad), y0: Math.max(0, top * cell - pad),
+        x1: Math.min(w, (right + 1) * cell + pad), y1: Math.min(h, (bottom + 1) * cell + pad),
+        area: rw * rh });
+    }
+    regions.sort((a, b) => b.area - a.area);
+    const chosen = [];
+    for (const r of regions) {
+      const overlap = chosen.some((c) => {
+        const iw = Math.max(0, Math.min(r.x1, c.x1) - Math.max(r.x0, c.x0));
+        const ih = Math.max(0, Math.min(r.y1, c.y1) - Math.max(r.y0, c.y0));
+        return iw * ih > .45 * Math.min((r.x1-r.x0)*(r.y1-r.y0), (c.x1-c.x0)*(c.y1-c.y0));
+      });
+      if (!overlap) chosen.push(r);
+      if (chosen.length === 4) break;
+    }
+    return chosen.sort((a, b) => a.y0 - b.y0).map((r, idx) => {
+      // Long perpendicular strokes are a hint, not proof, that this is a plotted chart.
+      let horizontal = 0, vertical = 0;
+      for (let y = Math.floor(r.y0); y < r.y1; y += 3) {
+        let longest = 0, run = 0;
+        for (let x = Math.floor(r.x0); x < r.x1; x++) {
+          const p = (y * w + x) * 4, dark = (.299*pixels[p]+.587*pixels[p+1]+.114*pixels[p+2]) < 155;
+          run = dark ? run + 1 : 0; longest = Math.max(longest, run);
+        }
+        if (longest > (r.x1-r.x0)*.4) horizontal++;
+      }
+      for (let x = Math.floor(r.x0); x < r.x1; x += 3) {
+        let longest = 0, run = 0;
+        for (let y = Math.floor(r.y0); y < r.y1; y++) {
+          const p = (y * w + x) * 4, dark = (.299*pixels[p]+.587*pixels[p+1]+.114*pixels[p+2]) < 155;
+          run = dark ? run + 1 : 0; longest = Math.max(longest, run);
+        }
+        if (longest > (r.y1-r.y0)*.4) vertical++;
+      }
+      const isChart = horizontal >= 1 && vertical >= 1;
+      const crop = ocrPhotoPreview(source, { x: r.x0 / w, y: r.y0 / h, w: (r.x1-r.x0)/w, h:(r.y1-r.y0)/h });
+      return { id: uid(), kind: isChart ? "chart" : "illustration",
+        image: crop, original: isChart ? crop : "", title: "自動擷取：" + (isChart ? "圖表" : "示圖") + " " + (idx+1),
+        chartType: "line", xAxis: "", yAxis: "", chartData: "" };
+    });
+  }
+
+  /* 圖文分區：保留舊題目相容的手動圖表編輯流程 */
   const CHART = { crop: "", editId: null };
   function previewVisuals() {
     const list = $("visualList");
@@ -1556,11 +1685,11 @@
     list.innerHTML = items.length ? items.map((v, i) =>
       '<article class="visual-card"><img src="' + v.image + '" alt="' + esc(v.kind === "chart" ? "圖表" : "示圖") + '">' +
       '<div class="visual-card-info"><strong>' + esc(v.title || (v.kind === "chart" ? "重製圖表" : "裁切示圖")) + '</strong><small>' +
-      (v.kind === "chart" ? "圖表重製 數據可再次修改" : "獨立圖片 不混入辨識文字") +
+      (v.kind === "chart" ? (v.chartData ? "圖表數據可再編輯" : "圖表原圖已獨立保存 未推測數值") : "示圖已獨立保存 不混入題目文字") +
       '</small><div class="visual-card-actions">' +
-      (v.kind === "chart" ? '<button type="button" data-visual-edit="' + esc(v.id) + '">編輯圖表</button>' : "") +
+      (v.kind === "chart" && v.chartData ? '<button type="button" data-visual-edit="' + esc(v.id) + '">編輯圖表</button>' : "") +
       '<button type="button" data-visual-remove="' + esc(v.id) + '">移除區塊</button></div></div></article>'
-    ).join("") : '<p class="visual-empty">尚未擷取圖像 點選圖像分區並圈選圖表或示圖</p>';
+    ).join("") : '<p class="visual-empty">上傳圖片後會在背景辨識圖表及示圖 若未偵測到可疑圖像則保留完整原圖</p>';
     $("visualCount").textContent = items.length ? items.length + " 個區塊" : "";
   }
   function addVisual(v) {
@@ -1811,10 +1940,12 @@
     $("ocrReviewPdf").disabled = !(c.pdf && c.pdf.length);
     $("ocrReviewPdf").title = c.pdf ? "下載 OCR 產生的原始可搜尋 PDF" : "本次未產生 PDF";
   }
-  async function runOcr(full) {
+  async function runOcr(full, automatic = false) {
     if (OCR.running || !S.image) return;
     const token = ++OCR.token;
+    const imageAtStart = S.image;
     OCR.running = true; OCR.last = Date.now();
+    if (automatic) status("ocrStatus", "背景正在分析文字與圖像 請勿關閉此頁");
     setOcrBusy(true); $("ocrProgBar").style.width = "2%"; $("ocrProgText").textContent = "準備中";
     const tip = $("ocrTip"); tip.classList.remove("warn");
     tip.textContent = OCR.worker && OCR.wLang === OCR.lang ? "正在以高精度模型辨識" : "首次使用需下載高精度模型 檔案較大";
@@ -1852,10 +1983,33 @@
         } catch (err) { console.warn("ocr alternative", err); }
       }
       OCR.running = false; clearInterval(OCR.watch); setOcrBusy(false);
-      if (!candidates.some((x) => x.text)) { tip.classList.add("warn"); tip.textContent = "沒有辨識到文字 請調整圈選範圍 或用清晰照片再試"; return; }
+      if (!candidates.some((x) => x.text) && !automatic) { tip.classList.add("warn"); tip.textContent = "沒有辨識到文字 請調整圈選範圍 或用清晰照片再試"; return; }
       closeOverlay($("ocrSheet"));
       await new Promise((resolve) => whenSettled(resolve));
-      if (token !== OCR.token) return;
+      if (token !== OCR.token || S.image !== imageAtStart) return;
+      if (automatic) {
+        const best = candidates.filter((x) => x.text).sort((a, b) => b.score - a.score)[0];
+        if (best) {
+          const input = $("questionText");
+          if (!input.value.trim() || input.value === OCR.lastAutoText) {
+            input.value = best.text; OCR.lastAutoText = best.text; scheduleDraft();
+          }
+        }
+        try {
+          const regions = automaticVisuals(img, primary);
+          S.visuals = S.visuals.filter((v) => !String(v.title || "").startsWith("自動擷取："));
+          const room = Math.max(0, 12 - S.visuals.length);
+          if (room && regions.length) S.visuals.push(...regions.slice(0, room));
+          previewVisuals(); scheduleDraft();
+          status("ocrStatus", best
+            ? "文字已自動辨識 " + (regions.length ? "並整理 " + Math.min(regions.length, room) + " 個圖像區塊 " : "") + "請對照原圖校正數字與公式"
+            : "未辨識到可靠文字 原始圖片已保留 請手動輸入");
+        } catch (e) {
+          console.warn("automatic visual extraction", e);
+          status("ocrStatus", "文字已辨識 圖像分區未完成 原始圖片仍完整保留");
+        }
+        return;
+      }
       showOcrResult(candidates.filter((x) => x.text), originalPreview);
     } catch (e) {
       if (token !== OCR.token) return;
@@ -1863,6 +2017,7 @@
       OCR.running = false; clearInterval(OCR.watch); setOcrBusy(false); dropWorker();
       tip.classList.add("warn");
       tip.textContent = navigator.onLine === false ? "離線尚未備妥語言模型 請連網後重試" : "辨識程式無法啟動 請重試 或使用手機內建選取文字";
+      if (automatic) status("ocrStatus", tip.textContent, true);
     } finally {
       clearTimeout(OCR.idle);
       OCR.idle = setTimeout(() => { if (!OCR.running) dropWorker(); }, 180000);
@@ -3096,8 +3251,8 @@
     $("takePhoto").addEventListener("click", () => $("cameraInput").click());
     $("galleryInput").addEventListener("change", (e) => loadPhoto(e.target.files[0]));
     $("cameraInput").addEventListener("change", (e) => loadPhoto(e.target.files[0]));
-    $("removePhoto").addEventListener("click", () => { if (!S.image) return; releaseOcrSource(); S.image = ""; previewImage(); scheduleDraft(); status("ocrStatus", "已移除圖片"); });
-    $("runOcr").addEventListener("click", () => openOcr("text"));
+    $("removePhoto").addEventListener("click", () => { if (!S.image) return; clearTimeout(OCR.autoTimer); if (OCR.running) stopOcr(true); releaseOcrSource(); S.image = ""; S.visuals = S.visuals.filter(v => !String(v.title || "").startsWith("自動擷取：")); previewImage(); previewVisuals(); scheduleDraft(); status("ocrStatus", "已移除圖片"); });
+    $("runOcr").addEventListener("click", () => { if (!S.image || OCR.running) return; OCR.lang = langForSubject(radioVal("subject", "")); runOcr(true, true); });
     wireOcr(); wireVisuals();
     $("rotatePhoto").addEventListener("click", rotatePhoto);
     $("zoomPhoto").addEventListener("click", () => { if (!S.image) { toast("請先加入圖片", { tone: "warn" }); return; } openLightbox(S.image, true); });
