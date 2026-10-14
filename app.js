@@ -3430,27 +3430,87 @@
       '<button type="button" class="icon-btn mini" data-plan-edit="' + esc(p.id) + '" data-date="' + d + '" aria-label="編輯排程">' + icon("i-edit") + "</button></div>";
   }
 
+
   function renderSchedule() {
     renderPlan();
   }
-
+  function scheduleMetrics(days) {
+    const metrics = { tasks: 0, done: 0, planned: 0, actual: 0 };
+    for (const day of days) {
+      const items = plansOn(day);
+      metrics.tasks += items.length;
+      metrics.done += items.filter(p => isPlanDone(p.id, day)).length;
+      metrics.planned += items.reduce((sum, p) => sum + (p.minutes || 0), 0);
+      metrics.actual += minutesOn(day);
+    }
+    return metrics;
+  }
   function renderPlan() {
-    const t = today();
-    S.planWeek = S.planWeek || monday(t);
-    S.planDay = S.planDay || t;
+    const now = today();
+    S.planWeek = S.planWeek || monday(now);
+    S.planDay = S.planDay || now;
+    S.planFilter = ["all","pending","done"].includes(S.planFilter) ? S.planFilter : "all";
     const mon = S.planWeek, sun = plusDays(mon, 6);
-    if (S.planDay < mon || S.planDay > sun) S.planDay = mon <= t && t <= sun ? t : mon;
-    $("weekLabel").textContent = mon === monday(t) ? "本週 " + dateShort(mon) + " 到 " + dateShort(sun) : dateShort(mon) + " 到 " + dateShort(sun);
-    $("weekStrip").innerHTML = [0, 1, 2, 3, 4, 5, 6].map((i) => {
-      const d = plusDays(mon, i), items = plansOn(d), done = items.filter((p) => isPlanDone(p.id, d)).length, mins = items.reduce((a, p) => a + (p.minutes || 0), 0);
-      const studied = minutesOn(d);
-      return '<button type="button" class="wd' + (d === S.planDay ? " on" : "") + (d === t ? " today" : "") + (d < t ? " past" : "") + '" data-plan-day="' + d + '" aria-pressed="' + (d === S.planDay) + '"><span class="wd-w">' + (d === t ? "今天" : "週" + WEEKDAY_SHORT[weekdayOf(d)]) + '</span><b>' + parseDate(d).getDate() + '</b><span class="wd-bar"><i style="width:' + (items.length ? done / items.length * 100 : 0) + '%"></i></span><small>' + (items.length ? items.length + " 項 " + mins + " 分" : studied >= 1 ? "讀 " + Math.round(studied) + " 分" : "未排") + "</small></button>";
+    if (S.planDay < mon || S.planDay > sun)
+      S.planDay = mon <= now && now <= sun ? now : mon;
+    const dates = [0,1,2,3,4,5,6].map(i => plusDays(mon, i));
+    const week = scheduleMetrics(dates);
+    const weekRate = week.tasks ? Math.round(week.done / week.tasks * 100) : 0;
+    $("weekLabel").textContent = (mon === monday(now) ? "本週 · " : "") +
+      dateShort(mon) + " — " + dateShort(sun);
+    $("scheduleWeekDone").innerHTML = week.done + ' <small>/ ' + week.tasks + ' 項</small>';
+    $("scheduleWeekProgress").style.width = weekRate + "%";
+    $("scheduleWeekPlanned").innerHTML = Math.round(week.planned) + ' <small>分鐘</small>';
+    $("scheduleWeekActual").innerHTML = Math.round(week.actual) + ' <small>分鐘</small>';
+    $("scheduleWeekSummary").textContent = week.tasks
+      ? "安排 " + week.tasks + " 項任務，已完成 " + week.done + " 項 · " + weekRate + "% 進度"
+      : "這週還沒有安排，從一項想完成的任務開始";
+    $("weekStrip").innerHTML = dates.map(d => {
+      const items = plansOn(d), done = items.filter(p => isPlanDone(p.id, d)).length;
+      const mins = items.reduce((sum,p) => sum + (p.minutes || 0),0);
+      const isCurrent = d === S.planDay;
+      return '<button type="button" class="wd' + (isCurrent ? ' on' : '') +
+        (d === now ? ' today' : '') + (d < now ? ' past' : '') +
+        '" data-plan-day="' + d + '" aria-pressed="' + isCurrent +
+        '" aria-label="' + esc(dateCN(d) + ' · ' + items.length + ' 項排程，完成 ' + done + ' 項') +
+        '"><span class="wd-w">' + (d === now ? '今天' : '週' + WEEKDAY_SHORT[weekdayOf(d)]) +
+        '</span><b>' + parseDate(d).getDate() + '</b>' +
+        '<span class="wd-bar"><i style="width:' + (items.length ? done/items.length*100:0) +
+        '%"></i></span><small>' + (items.length ? done + '/' + items.length + ' 項' :
+        '尚未安排') + '</small></button>';
     }).join("");
-    const items = plansOn(S.planDay);
-    const total = items.reduce((a, p) => a + (p.minutes || 0), 0), done = items.filter((p) => isPlanDone(p.id, S.planDay)).length;
-    $("planSub").textContent = items.length ? dateShort(S.planDay) + " " + weekdayCN(S.planDay) + " 共 " + items.length + " 項 預計 " + minLabel(total) + " 已完成 " + done + " 項" : "安排每天要讀的內容 從排程開始計時會自動累積進度";
-    $("planList").innerHTML = items.length ? items.map((p) => planItemHTML(p, S.planDay)).join("") :
-      emptyHTML("i-plan", S.planDay < t ? "這天沒有排程" : "這天還沒有排程", S.planDay < t ? "可以補登讀書紀錄" : "按新增自己安排 或用自動排程一次排好一週", S.planDay >= t ? '<button type="button" class="btn btn-ghost btn-sm" data-plan-new="' + S.planDay + '">' + icon("i-plus") + "新增排程</button>" : "");
+    const day = S.planDay, items = plansOn(day), done = items.filter(p => isPlanDone(p.id,day));
+    const pending = items.filter(p => !isPlanDone(p.id,day));
+    const dayStats = scheduleMetrics([day]);
+    const rate = items.length ? Math.round(done.length/items.length*100) : 0;
+    $("scheduleDayHeading").textContent = day === now ? "今天 · " + weekdayCN(day) :
+      dateShort(day) + " · " + weekdayCN(day);
+    $("planSub").textContent = items.length
+      ? items.length + " 項 · 預計 " + minLabel(dayStats.planned) + " · 完成 " + done.length + " 項"
+      : "這一天尚未安排任務，從一個容易開始的目標著手";
+    $("scheduleDayRing").style.setProperty("--progress",rate);
+    $("scheduleDayPercent").textContent = rate + "%";
+    $("scheduleDayPlanned").textContent = Math.round(dayStats.planned) + " 分";
+    $("scheduleDayActual").textContent = Math.round(dayStats.actual) + " 分";
+    const next = pending[0];
+    $("scheduleNextTask").textContent = next
+      ? (next.title || next.subject + " " + next.kind) + " · " + next.minutes + " 分鐘"
+      : items.length ? "這一天的排程已全部完成" : "先新增今天的第一項任務";
+    $("planFilterAll").textContent = items.length;
+    $("planFilterPending").textContent = pending.length;
+    $("planFilterDone").textContent = done.length;
+    all("#scheduleFilters [data-plan-filter]").forEach(b=>{
+      const on = b.dataset.planFilter === S.planFilter;
+      b.classList.toggle("active",on);
+      b.setAttribute("aria-pressed",String(on));
+    });
+    const visible = S.planFilter === "done" ? done : S.planFilter === "pending" ? pending : items;
+    $("planList").innerHTML = visible.length ? visible.map(p=>planItemHTML(p,day)).join("") :
+      emptyHTML("i-plan",
+        items.length ? "這個篩選目前沒有任務" : day < now ? "這一天沒有排程" : "這一天還沒有排程",
+        items.length ? "切回「全部」可以查看所有任務" : "可手動新增，或使用智慧排程安排一週",
+        !items.length && day >= now ? '<button type="button" class="btn btn-ghost btn-sm" data-plan-new="' +
+        day + '">' + icon("i-plus") + '新增這天的任務</button>' : "");
   }
   function openPlanSheet(p, date) {
     S.planEdit = p ? Object.assign({}, p) : { id: "", title: "", subject: tm().subject || firstSubject(), kind: KINDS[0], minutes: 50, time: "", date: date || S.planDay || today(), repeat: [] };
@@ -3842,6 +3902,17 @@
 
     $("planAdd").addEventListener("click", () => openPlanSheet(null, S.planDay >= today() ? S.planDay : today()));
     $("planAuto").addEventListener("click", autoPlan);
+    $("planToday").addEventListener("click", () => {
+      S.planWeek = monday(today()); S.planDay = today(); renderSchedule();
+    });
+    $("planAddDay").addEventListener("click", () => openPlanSheet(null, S.planDay || today()));
+    $("planGoTimer").addEventListener("click", () => setTab("study"));
+    $("scheduleFilters").addEventListener("click", e => {
+      const button = e.target.closest("[data-plan-filter]");
+      if (!button) return;
+      S.planFilter = button.dataset.planFilter;
+      renderSchedule();
+    });
     $("weekPrev").addEventListener("click", () => { S.planWeek = plusDays(S.planWeek || monday(today()), -7); S.planDay = S.planWeek; renderPlan(); });
     $("weekNext").addEventListener("click", () => { S.planWeek = plusDays(S.planWeek || monday(today()), 7); S.planDay = S.planWeek; renderPlan(); });
     $("planClose").addEventListener("click", () => closeOverlay($("planSheet")));
