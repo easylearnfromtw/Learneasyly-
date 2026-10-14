@@ -3021,6 +3021,160 @@
   // The host container calls this after initial navigation or foregrounding.
   window.learnAngleSyncTimer = () => nativeTimerSync("sync");
 
+
+  /* Study-time motivation: derived from existing stored sessions.
+     A running, unsaved session is only displayed provisionally. No duplicate
+     history table, artificial XP or inferred learning-quality score. */
+  const STUDY_TITLES = [
+    { min: 0, title: "起點", next: 120 },
+    { min: 120, title: "專注新芽", next: 600 },
+    { min: 600, title: "穩定累積", next: 1800 },
+    { min: 1800, title: "自律行者", next: 3600 },
+    { min: 3600, title: "深度耕耘", next: 7200 },
+    { min: 7200, title: "持續精進", next: 0 }
+  ];
+  const STUDY_CHECKPOINTS = [
+    { min: 10, label: "完成第一段 10 分鐘", note: "先開始，比追求完美更重要" },
+    { min: 25, label: "25 分鐘專注", note: "完成一個完整的番茄區間" },
+    { min: 50, label: "50 分鐘深度專注", note: "完成後記得伸展、喝水" },
+    { min: 90, label: "90 分鐘投入", note: "長時間學習，休息也是必要的" },
+    { min: 120, label: "兩小時累積", note: "你留下了一段紮實的讀書時間" }
+  ];
+  const STUDY_GOAL_DAILY = [30, 45, 60, 90, 120, 150, 180, 240, 300, 360];
+  const STUDY_GOAL_WEEKLY = [120, 180, 240, 360, 480, 600, 720, 900, 1200, 1500, 1800];
+  function studyGoal(type) {
+    const key = type === "week" ? "studyWeeklyMinutes" : "studyDailyMinutes";
+    const fallback = type === "week" ? 600 : 120;
+    const allowed = type === "week" ? STUDY_GOAL_WEEKLY : STUDY_GOAL_DAILY;
+    const n = Number(cfg(key, fallback));
+    return allowed.includes(n) ? n : fallback;
+  }
+  function studyMode() {
+    const value = cfg("studyMotivationMode", "gentle");
+    return ["gentle", "energetic", "quiet"].includes(value) ? value : "gentle";
+  }
+  function studyStoredMinutes(from, to) {
+    return S.daily.reduce((sum, d) => {
+      if (!d || d.id < from || d.id > to) return sum;
+      return sum + (d.sessions || []).reduce((part, x) => part + Math.max(0, Number(x.sec) || 0) / 60, 0);
+    }, 0);
+  }
+  function studyUncommittedMinutes(from, to) {
+    const t = tm();
+    if (!tmActive() || !t.first) return 0;
+    const start = localDate(new Date(t.first));
+    if (start < from || start > to) return 0;
+    return Math.max(0, (tmTarget() ? Math.min(tmElapsed(), tmTarget()) : tmElapsed()) / 60000);
+  }
+  function studyTotals(withRunning = false) {
+    const day = today(), weekStart = monday(day);
+    const extraToday = withRunning ? studyUncommittedMinutes(day, day) : 0;
+    const extraWeek = withRunning ? studyUncommittedMinutes(weekStart, day) : 0;
+    return {
+      today: studyStoredMinutes(day, day) + extraToday,
+      week: studyStoredMinutes(weekStart, day) + extraWeek,
+      weekStart,
+      lifetime: S.daily.reduce((sum, d) =>
+        sum + (d.sessions || []).reduce((part, x) => part + Math.max(0, Number(x.sec) || 0) / 60, 0), 0)
+    };
+  }
+  function studyDaysStreak() {
+    const threshold = 15, now = today();
+    let date = minutesOn(now) >= threshold ? now : plusDays(now, -1);
+    let count = 0;
+    // Only fully recorded days count, but an active day can display progress.
+    for (let i = 0; i < 366 && minutesOn(date) >= threshold; i++) {
+      count++; date = plusDays(date, -1);
+    }
+    return count;
+  }
+  function studyRank(minutes) {
+    let tier = STUDY_TITLES[0];
+    for (const item of STUDY_TITLES) if (minutes >= item.min) tier = item;
+    return tier;
+  }
+  function studyProgressText(minutes, goal) {
+    return Math.max(0, Math.floor(minutes)) + " / " + goal + " 分鐘";
+  }
+  function studyCheckpoint(elapsedMinutes) {
+    let last = null;
+    for (const point of STUDY_CHECKPOINTS) if (elapsedMinutes >= point.min) last = point;
+    return last;
+  }
+  function studyEncouragement() {
+    const elapsedMinutes = tmElapsed() / 60000, t = tm();
+    const next = STUDY_CHECKPOINTS.find(p => p.min > elapsedMinutes);
+    if (tmActive() && !t.run) return "已暫停。休息一下也算把節奏照顧好。";
+    if (t.run && next) return "再 " + Math.max(1, Math.ceil(next.min - elapsedMinutes)) + " 分鐘，達到「" + next.label + "」";
+    if (t.run) return "已經投入 " + Math.floor(elapsedMinutes) + " 分鐘，記得視狀況安排短暫休息";
+    const totals = studyTotals(false);
+    return totals.today > 0 ? "今天已累積 " + Math.floor(totals.today) + " 分鐘，下一段依自己的節奏開始" : "從一小段開始就好，今天不需要一次做完全部";
+  }
+  function renderStudyMotivation() {
+    const box = $("studyMotivation");
+    if (!box) return;
+    const totals = studyTotals(true);
+    const dayGoal = studyGoal("day"), weekGoal = studyGoal("week"), rank = studyRank(totals.lifetime);
+    const dayP = Math.min(100, totals.today / dayGoal * 100), weekP = Math.min(100, totals.week / weekGoal * 100);
+    $("studyTodayCount").textContent = studyProgressText(totals.today, dayGoal);
+    $("studyWeekCount").textContent = studyProgressText(totals.week, weekGoal);
+    $("studyTodayBar").style.width = dayP.toFixed(1) + "%";
+    $("studyWeekBar").style.width = weekP.toFixed(1) + "%";
+    $("studyTodayBar").parentElement.setAttribute("aria-valuenow", String(Math.min(dayGoal, Math.floor(totals.today))));
+    $("studyWeekBar").parentElement.setAttribute("aria-valuenow", String(Math.min(weekGoal, Math.floor(totals.week))));
+    $("studyStreak").textContent = studyDaysStreak() + " 天";
+    $("studyRank").textContent = rank.title;
+    $("studyTotalMinutes").textContent = Math.floor(totals.lifetime) + " 分鐘";
+    $("studyNextRank").textContent = rank.next ? "再累積 " + Math.ceil(rank.next - totals.lifetime) + " 分鐘升級" : "持續累積，已達目前最高階段";
+    $("studyCheckpointHint").textContent = studyEncouragement();
+    const elapsedMinutes = tmElapsed() / 60000;
+    const current = tmActive() ? studyCheckpoint(elapsedMinutes) : null;
+    $("studySessionCheckpoint").textContent = current ? current.label + " · " + current.note : "下一個階段：10 分鐘";
+    const active = tmActive();
+    $("studyProvisional").hidden = !active;
+    $("studyGoalDaily").value = String(dayGoal);
+    $("studyGoalWeekly").value = String(weekGoal);
+    $("studyMotivationMode").value = studyMode();
+    const focusHint = $("focusMotivation");
+    if (focusHint) focusHint.textContent = studyEncouragement();
+  }
+  function celebrateStudyGoals(before, after, date) {
+    const mode = studyMode(), start = monday(date), goals = [];
+    const dayGoal = studyGoal("day"), weekGoal = studyGoal("week");
+    if (before.today < dayGoal && after.today >= dayGoal &&
+        cfg("studyDailyReward", "") !== date) {
+      setCfg("studyDailyReward", date);
+      goals.push("完成今天 " + dayGoal + " 分鐘的讀書目標");
+    }
+    if (before.week < weekGoal && after.week >= weekGoal &&
+        cfg("studyWeeklyReward", "") !== start) {
+      setCfg("studyWeeklyReward", start);
+      goals.push("完成本週 " + weekGoal + " 分鐘的累積目標");
+    }
+    if (!goals.length || mode === "quiet") return;
+    if (mode === "energetic") celebrate({
+      title: goals.length > 1 ? "一次完成兩個時間目標" : "讀書時間達標",
+      body: goals.join("，") + "。時間之外，也記得整理剛剛學會的內容。",
+      icon: "i-trophy", colors: ACH_COLORS[2], button: "收下這份累積"
+    });
+    else toast(goals.join("，"), { icon: "i-check" });
+  }
+  function tickStudyCheckpoint() {
+    if (!tm().run || document.hidden) return;
+    const session = String(tm().first || 0);
+    const elapsed = tmElapsed() / 60000;
+    if (TM.rewardSession !== session) {
+      TM.rewardSession = session;
+      TM.rewardMinute = studyCheckpoint(elapsed)?.min || 0;
+      return;
+    }
+    const checkpoint = studyCheckpoint(elapsed);
+    if (!checkpoint || checkpoint.min <= (TM.rewardMinute || 0)) return;
+    TM.rewardMinute = checkpoint.min;
+    if (studyMode() === "energetic" && checkpoint.min !== 25 && checkpoint.min !== 50)
+      toast(checkpoint.label + "。 " + checkpoint.note, { icon: "i-timer" });
+  }
+
   function tm() {
     if (!S.timer) S.timer = Object.assign({ run: false, acc: 0, at: 0, first: 0, mode: "up", subject: "", kind: KINDS[0], note: "", planId: "" }, cfg("timer", {}) || {});
     if (!S.timer.subject || !inSubjects(S.timer.subject)) S.timer.subject = S.timer.subject && COLOR_BANK[S.timer.subject] ? S.timer.subject : firstSubject();
@@ -3041,6 +3195,8 @@
     const t = tm(), el = tmElapsed(), tg = tmTarget();
     if (tg && t.run && el >= tg) { tmFinish(true); return; }
     const shown = tmShown(), html = clockHTML(shown), active = tmActive();
+    tickStudyCheckpoint();
+    if (S.tab === "study" && (!TM.rewardRefresh || Date.now() - TM.rewardRefresh > 15000)) { TM.rewardRefresh = Date.now(); renderStudyMotivation(); }
     const pct = tg ? Math.min(100, el / tg * 100) : (el % 3600000) / 36000;
     if (S.tab === "study") {
       $("timerDisplay").innerHTML = html; $("timerDisplay").setAttribute("aria-label", (tg ? "剩下 " : "已專注 ") + clockLabel(shown));
@@ -3112,11 +3268,17 @@
     const start = new Date(t.first || Date.now() - el), end = auto ? new Date(start.getTime() + sec * 1000) : new Date();
     const rec = { id: uid(), start: start.toISOString(), end: end.toISOString(), sec, subject: t.subject, kind: t.kind, note: clean(t.note).slice(0, 60), mode: t.mode, planId: t.planId || "" };
     const planId = t.planId;
+    const beforeGoals = { today: studyStoredMinutes(localDate(start), localDate(start)),
+      week: studyStoredMinutes(monday(localDate(start)), localDate(start)) };
     Object.assign(t, { run: false, acc: 0, at: 0, first: 0, planId: "" });
     if (!auto) t.note = "";
     tmSave(); stopTicker(); wakeOff(); nativeTimerSync("finish");
     const ok = await putSession(rec, localDate(start));
     if (!ok) { toast("紀錄沒有存成功 請檢查儲存空間", { tone: "warn" }); return; }
+    const finishDay = localDate(start);
+    const afterGoals = { today: studyStoredMinutes(finishDay, finishDay),
+      week: studyStoredMinutes(monday(finishDay), finishDay) };
+    celebrateStudyGoals(beforeGoals, afterGoals, finishDay);
     const mins = Math.max(1, Math.round(sec / 60));
     if (auto) {
       chime(); FX.haptic([30, 80, 30, 80, 40]);
@@ -3379,7 +3541,7 @@
 
   /* 讀書頁 */
   function renderStudy() {
-    buildTimerChips(); renderTimer(); renderPlan();
+    buildTimerChips(); renderTimer(); renderPlan(); renderStudyMotivation();
     const t = today(); S.logDay = S.logDay || t;
     const list = sessionsOn(S.logDay).sort((a, b) => String(b.start).localeCompare(String(a.start)));
     const sum = list.reduce((a, x) => a + (x.sec || 0), 0) / 60;
@@ -3623,6 +3785,20 @@
     return false;
   }
   function wireStudy() {
+    $("studyGoalDaily").addEventListener("change", (e) => {
+      const value = Number(e.target.value);
+      if (!STUDY_GOAL_DAILY.includes(value)) return;
+      setCfg("studyDailyMinutes", value); renderStudyMotivation();
+    });
+    $("studyGoalWeekly").addEventListener("change", (e) => {
+      const value = Number(e.target.value);
+      if (!STUDY_GOAL_WEEKLY.includes(value)) return;
+      setCfg("studyWeeklyMinutes", value); renderStudyMotivation();
+    });
+    $("studyMotivationMode").addEventListener("change", (e) => {
+      if (!["gentle","energetic","quiet"].includes(e.target.value)) return;
+      setCfg("studyMotivationMode", e.target.value); renderStudyMotivation();
+    });
     $("timerMain").addEventListener("click", tmToggle);
     $("timerStop").addEventListener("click", () => tmFinish(false));
     $("timerReset").addEventListener("click", async () => { if (await ask({ title: "捨棄這次計時", body: "這段時間不會被記錄", ok: "捨棄", cancel: "保留", danger: true })) tmReset(); });
