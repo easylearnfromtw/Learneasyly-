@@ -8,6 +8,37 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const assets = ["index.html", "styles.css", "app.js", "fx.js", "glass.js", "cube.js", "sw.js", "icon.svg", "icon-maskable.svg", "manifest.webmanifest", "privacy.html", "data/exams.json"];
 for (const file of assets) assert.ok(fs.existsSync(path.join(root, file)), "Missing public asset " + file);
 const html = read("index.html"), css = read("styles.css"), script = read("app.js"), sw = read("sw.js");
+
+/* Brand assets must be deployed as actual raster images for social crawlers.
+   The deploy workflow runs scripts/build-brand-assets.py before this check. */
+const BRAND_FILES = [
+  "icon.svg", "icon-maskable.svg", "brand/og-wide.svg",
+  "brand/og-square.svg", "brand/pinned-tab.svg",
+  "sitemap.xml", "assets/favicon.ico", "assets/apple-touch-icon.png",
+  "assets/icon-16.png", "assets/icon-32.png", "assets/icon-48.png",
+  "assets/icon-192.png", "assets/icon-512.png",
+  "assets/icon-maskable-192.png", "assets/icon-maskable-512.png",
+  "assets/og-image.jpg", "assets/social-square.jpg"
+];
+for (const file of BRAND_FILES)
+  assert.ok(fs.existsSync(path.join(root, file)), "Missing branding asset " + file);
+for (const page of [html, read("privacy.html")]) {
+  assert.ok(page.includes('property="og:image" content="https://easylearnfromtw.github.io/Learneasyly-/assets/og-image.jpg"'), "OG image must be an absolute public JPEG URL");
+  assert.ok(page.includes('name="twitter:card" content="summary_large_image"'), "Missing Twitter large image card");
+  assert.ok(page.includes('rel="canonical"'), "Missing canonical URL");
+  assert.ok(page.includes('rel="apple-touch-icon"'), "Missing Apple touch icon");
+  assert.ok(page.includes('property="og:image:width" content="1200"'), "Incorrect OG preview width");
+  assert.ok(page.includes('property="og:image:height" content="630"'), "Incorrect OG preview height");
+}
+const brandManifest = JSON.parse(read("manifest.webmanifest"));
+assert.ok(brandManifest.icons.some(x => x.src === "./assets/icon-512.png"), "Missing 512px PWA icon");
+assert.ok(brandManifest.icons.some(x => x.src === "./assets/icon-maskable-512.png"), "Missing maskable icon");
+assert.ok(html.includes('type="application/ld+json"'), "Missing structured application data");
+const gif = fs.readFileSync(path.join(root, "assets/og-image.jpg"));
+assert.ok(gif.length > 1000 && gif[0] === 255 && gif[1] === 216, "OG image is not JPEG");
+const png = fs.readFileSync(path.join(root, "assets/icon-512.png"));
+assert.ok(png.length > 1000 && png.subarray(1,4).toString() === "PNG", "PWA icon is not PNG");
+
 const extras = ["fx.js", "glass.js", "cube.js"].map((f) => [f, read(f)]);
 
 /* Pages and element references */
