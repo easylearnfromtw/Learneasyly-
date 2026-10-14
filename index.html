@@ -276,6 +276,7 @@
                   <button type="button" class="tool" id="takePhoto"><svg class="ic"><use href="#i-camera"/></svg><span>相機</span></button>
                   <button type="button" class="tool" id="choosePhoto"><svg class="ic"><use href="#i-image"/></svg><span>相簿</span></button>
                   <button type="button" class="tool tool-accent" id="runOcr"><svg class="ic"><use href="#i-scan"/></svg><span>重新辨識</span></button>
+                  <button type="button" class="tool" id="runInkCrop" title="黑筆或不易分離的手寫內容可以另外圈選保存"><svg class="ic"><use href="#i-pen"/></svg><span>補抓筆跡</span></button>
                   <button type="button" class="tool" id="runVisual" hidden><svg class="ic"><use href="#i-chart"/></svg><span>圖像分區</span></button>
                   <button type="button" class="tool" id="rotatePhoto"><svg class="ic"><use href="#i-rotate"/></svg><span>旋轉</span></button>
                   <button type="button" class="tool" id="zoomPhoto"><svg class="ic"><use href="#i-lens"/></svg><span>放大</span></button>
@@ -292,6 +293,9 @@
                     <li>拍照時盡量正對紙面 避免嚴重失焦 反光與遮擋 保留完整題目與選項</li>
                     <li>上傳後文字及圖像在裝置上自動處理 請對照原圖校正辨識結果</li>
                     <li>數學題會特別標示向量箭頭 線段上劃線 內積 根號與分數 不能辨識時會提示校對</li>
+                    <li>彩色手寫字、圈選和批註會嘗試自動保存為獨立圖塊，不一定能與印刷彩色圖案區分</li>
+                    <li>黑筆字或與印刷重疊的筆跡可按「補抓筆跡」圈選保存，再自行記錄內容</li>
+                    <li>手寫公式與數字不會被系統當成已核對的題目或答案</li>
                     <li>圖表和示圖會嘗試自動辨識及擷取 無法確定時保留原圖</li>
                     <li>圖表自動擷取不等於正確重建數據 圖上的數字仍需人工核對</li>
                     <li>iPhone 在照片裡長按題目文字 選取後拷貝 再貼到題目文字</li>
@@ -307,6 +311,13 @@
                   <button type="button" data-math-mark="dot" title="插入內積點">內積 ·</button>
                   <button type="button" data-math-mark="fraction" title="插入分數">分數</button>
                   <button type="button" data-math-mark="sqrt" title="插入根號">根號 √</button>
+                  <button type="button" data-math-mark="power">次方 x²</button>
+                  <button type="button" data-math-mark="index">下標 a₁</button>
+                  <button type="button" data-math-mark="angle">角 ∠</button>
+                  <button type="button" data-math-mark="parallel">平行 ∥</button>
+                  <button type="button" data-math-mark="perp">垂直 ⟂</button>
+                  <button type="button" data-math-mark="pi">π</button>
+                  <button type="button" data-math-mark="leq">≤</button>
                 </div></div>
                   <div id="questionMathNotice" hidden aria-live="polite"></div>
                   <div class="math-live-preview" id="questionMathPreview" hidden aria-label="數學記號排版預覽"></div>
@@ -855,6 +866,13 @@
                   <button type="button" data-math-mark="dot" title="插入內積點">內積 ·</button>
                   <button type="button" data-math-mark="fraction" title="插入分數">分數</button>
                   <button type="button" data-math-mark="sqrt" title="插入根號">根號 √</button>
+                  <button type="button" data-math-mark="power">次方 x²</button>
+                  <button type="button" data-math-mark="index">下標 a₁</button>
+                  <button type="button" data-math-mark="angle">角 ∠</button>
+                  <button type="button" data-math-mark="parallel">平行 ∥</button>
+                  <button type="button" data-math-mark="perp">垂直 ⟂</button>
+                  <button type="button" data-math-mark="pi">π</button>
+                  <button type="button" data-math-mark="leq">≤</button>
                 </div></div>
           <div id="ocrMathNotice" hidden aria-live="polite"></div>
           <div class="math-live-preview" id="ocrMathPreview" hidden aria-label="數學記號排版預覽"></div>
