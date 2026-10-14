@@ -1,1 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f4b69"/><stop offset="1" stop-color="#243a52"/></linearGradient></defs><rect width="192" height="192" rx="44" fill="url(#g)"/><path d="M45 141L123 51 147 141z" fill="#8fbbe3" opacity=".22"/><path d="M45 141h42l-9.6-37.8z" fill="#f5d562"/><path d="M123 51L45 141h102" fill="none" stroke="#f4f7fb" stroke-width="19" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="8"/><rect x="130.5" y="28.5" width="24" height="24" rx="6" fill="#d2412e" transform="rotate(45 142.5 40.5)"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+ <defs>
+  <radialGradient id="board" cx=".5" cy=".32" r=".85">
+   <stop offset="0" stop-color="#243247"/><stop offset=".69" stop-color="#131e2d"/><stop offset="1" stop-color="#0a1019"/>
+  </radialGradient>
+  <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+   <stop offset="0" stop-color="#84b9e3" stop-opacity=".56"/>
+   <stop offset="1" stop-color="#315d86" stop-opacity=".43"/>
+  </linearGradient>
+  <linearGradient id="gold" x1="0" y1="0" x2=".7" y2="1">
+   <stop offset="0" stop-color="#ffd85c"/><stop offset="1" stop-color="#f3a414"/>
+  </linearGradient>
+ </defs>
+ <rect width="1024" height="1024" rx="224" fill="url(#board)"/>
+ <path d="M434 587L741 373V784H434Z" fill="url(#blue)"/>
+ <path d="M202 785 L356 630 Q431 699 430 785Z" fill="url(#gold)"/>
+ <path d="M199 786L709 253" stroke="#fafbff" stroke-width="22" fill="none" stroke-linecap="round"/>
+ <path d="M199 786H834" stroke="#fafbff" stroke-width="22" fill="none" stroke-linecap="round"/>
+ <path d="M746 333V786" stroke="#fff" stroke-width="17" stroke-dasharray="45 23" stroke-linecap="round" fill="none"/>
+ <path d="M421 599L746 786" stroke="#fff" stroke-width="16" stroke-dasharray="33 27" stroke-linecap="round" fill="none"/>
+ <path d="M356 629Q429 691 430 785" stroke="#fff" stroke-width="16" fill="none" stroke-linecap="round"/>
+ <rect x="719" y="216" width="76" height="76" rx="9" fill="#fa5261" transform="rotate(45 757 254)"/>
+</svg>
