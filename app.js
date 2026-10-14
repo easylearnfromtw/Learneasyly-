@@ -3009,9 +3009,12 @@
     const node = $("iosTimerHint");
     if (!node) return;
     const native = nativeTimerAvailable();
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    node.parentElement.hidden = !native && !isAppleMobile;
     node.textContent = native
-      ? "原生鎖屏計時可用：開始計時後，iPhone 鎖定畫面會透過即時動態顯示進度。"
-      : "iPhone 網頁版無法直接顯示鎖屏即時動態。可開啟常亮專注畫面，保持網頁可見；真正鎖屏倒數需原生 App。";
+      ? "原生 iOS 計時整合已連接。若允許即時動態，鎖定畫面可顯示正計時或倒數。"
+      : "純網頁無法在 iPhone 鎖屏顯示即時倒數；你可使用專注常亮畫面（依瀏覽器支援），真正的鎖屏倒數需要安裝原生版。";
     const button = $("iosTimerFocus");
     if (button) button.hidden = native;
   }
