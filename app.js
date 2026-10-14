@@ -1356,7 +1356,7 @@
     const w = OCR.worker; OCR.worker = null; OCR.wLang = "";
     if (w) { try { await w.terminate(); } catch (e) {} }
   }
-  const OCR_DEFAULT_STATUS = "按轉文字圈出題目 本次拍照會保留高畫質供辨識";
+  const OCR_DEFAULT_STATUS = "上傳圖片後會自動辨識文字和圖像 原圖保留供核對";
   function ocrModelUI(state, pct) {
     OCR.mstate = state; OCR.mpct = pct || 0;
     const texts = {
@@ -1370,7 +1370,7 @@
     $("ocrModelBtnText").textContent = state === "ready" ? "重新檢查檔案" : state === "downloading" ? "下載中" : "立即下載";
     const st = $("ocrStatus");
     if (!OCR.running && (st.textContent === OCR_DEFAULT_STATUS || st.textContent === OCR.statusText)) {
-      const line = state === "ready" ? "高精度模型已備妥 可圈選題目辨識" : state === "downloading" ? "高精度模型下載中 " + Math.round(OCR.mpct) + "%" : OCR_DEFAULT_STATUS;
+      const line = state === "ready" ? "文字模型已備妥 上傳圖片後自動處理" : state === "downloading" ? "高精度模型下載中 " + Math.round(OCR.mpct) + "%" : OCR_DEFAULT_STATUS;
       st.textContent = line; st.classList.remove("error"); OCR.statusText = line;
     }
   }
@@ -1437,6 +1437,7 @@
     g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
     g.fillStyle = "#fff"; g.fillRect(0, 0, cw, ch);
     g.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+    if (variant === "original") return c;
     const data = g.getImageData(0, 0, cw, ch), d = data.data;
     const hist = new Uint32Array(256), gray = new Uint8Array(cw * ch);
     for (let i = 0, p = 0; i < d.length; i += 4, p++) {
@@ -1968,7 +1969,7 @@
       if (token !== OCR.token) return;
       const candidates = [primary];
       const isMath = /數學/.test(radioVal("subject", ""));
-      const lowQuality = primary.confidence < 82 || primary.text.length < 8;
+      const lowQuality = full || primary.confidence < 85 || primary.text.length < 8;
       const lowMemory = S.lite || (navigator.deviceMemory && navigator.deviceMemory <= 3);
       if ((lowQuality || isMath) && !lowMemory) {
         OCR.last = Date.now();
@@ -1976,11 +1977,24 @@
         $("ocrProgText").textContent = "加強辨識中";
         try {
           const alt = prepForOCR(img, r, "adaptive");
-          await w.setParameters({ tessedit_pageseg_mode: full ? "11" : "11", preserve_interword_spaces: "1" });
+          await w.setParameters({ tessedit_pageseg_mode: full ? "6" : "11", preserve_interword_spaces: "1" });
           const second = await recognizeWithSearchablePdf(w, alt);
           if (token !== OCR.token) return;
           if (second.text && second.text !== primary.text) candidates.push(second);
         } catch (err) { console.warn("ocr alternative", err); }
+      }
+      // Compare a third, unfiltered read when a mathematical question still looks uncertain.
+      // Aggressive thresholding can delete faint minus signs and fraction bars.
+      const bestConfidence = Math.max(...candidates.map((x) => x.confidence));
+      if ((isMath || bestConfidence < 68) && !lowMemory && canvas.width * canvas.height <= 6500000) {
+        OCR.last = Date.now();
+        try {
+          const natural = prepForOCR(img, r, "original");
+          await w.setParameters({ tessedit_pageseg_mode: full ? "3" : "6", preserve_interword_spaces: "1" });
+          const third = await recognizeWithSearchablePdf(w, natural);
+          if (token !== OCR.token) return;
+          if (third.text && !candidates.some((x) => x.text === third.text)) candidates.push(third);
+        } catch (e) { console.warn("original image OCR", e); }
       }
       OCR.running = false; clearInterval(OCR.watch); setOcrBusy(false);
       if (!candidates.some((x) => x.text) && !automatic) { tip.classList.add("warn"); tip.textContent = "沒有辨識到文字 請調整圈選範圍 或用清晰照片再試"; return; }
