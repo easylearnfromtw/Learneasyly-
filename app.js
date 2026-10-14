@@ -2975,6 +2975,49 @@
 
   /* 讀書計時 以時間戳記計算 背景或重新整理都不會失準 */
   const TM = { int: null, wake: null, audio: null, saveT: null };
+
+  // Native iOS Live Activity bridge. A Safari tab / installed PWA has no
+  // ActivityKit bridge, so never promise a genuine Lock Screen countdown there.
+  // Send only at state transitions, not every 500ms tick.
+  function nativeTimerAvailable() {
+    return !!(window.webkit && window.webkit.messageHandlers &&
+      window.webkit.messageHandlers.learnAngleLiveActivity);
+  }
+  function nativeTimerSync(eventName) {
+    if (!nativeTimerAvailable()) return false;
+    try {
+      const t = tm(), elapsed = tmElapsed(), total = tmTarget();
+      const packet = {
+        version: 1, event: String(eventName || "sync"),
+        mode: t.mode, subject: String(t.subject || "").slice(0, 40),
+        kind: String(t.kind || "").slice(0, 40),
+        note: String(t.note || "").slice(0, 60),
+        running: !!t.run,
+        active: tmActive(),
+        elapsedMs: Math.round(elapsed),
+        remainingMs: total ? Math.max(0, Math.round(total - elapsed)) : 0,
+        issuedAt: Date.now()
+      };
+      window.webkit.messageHandlers.learnAngleLiveActivity.postMessage(packet);
+      return true;
+    } catch (error) {
+      console.warn("Native Live Activity bridge failed", error);
+      return false;
+    }
+  }
+  function updateTimerPlatformHint() {
+    const node = $("iosTimerHint");
+    if (!node) return;
+    const native = nativeTimerAvailable();
+    node.textContent = native
+      ? "原生鎖屏計時可用：開始計時後，iPhone 鎖定畫面會透過即時動態顯示進度。"
+      : "iPhone 網頁版無法直接顯示鎖屏即時動態。可開啟常亮專注畫面，保持網頁可見；真正鎖屏倒數需原生 App。";
+    const button = $("iosTimerFocus");
+    if (button) button.hidden = native;
+  }
+  // The host container calls this after initial navigation or foregrounding.
+  window.learnAngleSyncTimer = () => nativeTimerSync("sync");
+
   function tm() {
     if (!S.timer) S.timer = Object.assign({ run: false, acc: 0, at: 0, first: 0, mode: "up", subject: "", kind: KINDS[0], note: "", planId: "" }, cfg("timer", {}) || {});
     if (!S.timer.subject || !inSubjects(S.timer.subject)) S.timer.subject = S.timer.subject && COLOR_BANK[S.timer.subject] ? S.timer.subject : firstSubject();
@@ -3040,18 +3083,19 @@
     if (!t.first || t.acc === 0) t.first = Date.now();
     t.at = Date.now(); t.run = true; tmSave();
     FX.haptic(10); startTicker(); renderTimer();
+    nativeTimerSync("start");
     if (!$("focusMode").hidden) wakeOn();
   }
   function tmPause() {
     const t = tm(); if (!t.run) return;
     t.acc = tmElapsed(); t.run = false; tmSave();
-    FX.haptic(6); tmTick(); renderTimer(); wakeOff();
+    FX.haptic(6); tmTick(); renderTimer(); wakeOff(); nativeTimerSync("pause");
   }
   function tmToggle() { if (tm().run) tmPause(); else tmStart(); }
   function tmReset() {
     const t = tm();
     Object.assign(t, { run: false, acc: 0, at: 0, first: 0, planId: "" });
-    tmSave(); stopTicker(); tmTick(); renderTimer(); wakeOff();
+    tmSave(); stopTicker(); tmTick(); renderTimer(); wakeOff(); nativeTimerSync("reset");
   }
   async function tmFinish(auto) {
     const t = tm(), el = tmElapsed(), tg = tmTarget();
@@ -3067,7 +3111,7 @@
     const planId = t.planId;
     Object.assign(t, { run: false, acc: 0, at: 0, first: 0, planId: "" });
     if (!auto) t.note = "";
-    tmSave(); stopTicker(); wakeOff();
+    tmSave(); stopTicker(); wakeOff(); nativeTimerSync("finish");
     const ok = await putSession(rec, localDate(start));
     if (!ok) { toast("紀錄沒有存成功 請檢查儲存空間", { tone: "warn" }); return; }
     const mins = Math.max(1, Math.round(sec / 60));
@@ -3529,7 +3573,7 @@
     const t = tm();
     if (t.mode === m) return;
     if (tmActive()) { toast("計時中不能切換 先完成或捨棄這一段", { tone: "warn" }); renderTimer(); return; }
-    t.mode = m; tmSave(); FX.haptic(4); renderTimer();
+    t.mode = m; tmSave(); FX.haptic(4); renderTimer(); updateTimerPlatformHint();
   }
   function setChance(c) { S.admitChance = c; S.admitShow = 30; renderAdmit(); FX.haptic(4); }
   function setListen(v) { S.scores.listen = v; saveScores(); renderAdmit(); FX.haptic(4); }
@@ -3580,10 +3624,12 @@
     $("timerStop").addEventListener("click", () => tmFinish(false));
     $("timerReset").addEventListener("click", async () => { if (await ask({ title: "捨棄這次計時", body: "這段時間不會被記錄", ok: "捨棄", cancel: "保留", danger: true })) tmReset(); });
     $("timerMode").addEventListener("click", (e) => { const b = e.target.closest("[data-mode]"); if (b) setMode(b.dataset.mode); });
-    $("timerSubject").addEventListener("change", (e) => { tm().subject = e.target.value; tmSave(); renderTimer(); });
-    $("timerKind").addEventListener("change", (e) => { tm().kind = e.target.value; tmSave(); renderTimer(); });
-    $("timerNote").addEventListener("input", () => { tm().note = $("timerNote").value; clearTimeout(TM.saveT); TM.saveT = setTimeout(tmSave, 400); });
+    $("timerSubject").addEventListener("change", (e) => { tm().subject = e.target.value; tmSave(); renderTimer(); if (tmActive()) nativeTimerSync("sync"); });
+    $("timerKind").addEventListener("change", (e) => { tm().kind = e.target.value; tmSave(); renderTimer(); if (tmActive()) nativeTimerSync("sync"); });
+    $("timerNote").addEventListener("input", () => { tm().note = $("timerNote").value; clearTimeout(TM.saveT); TM.saveT = setTimeout(() => { tmSave(); if (tmActive()) nativeTimerSync("sync"); }, 400); });
     $("focusBtn").addEventListener("click", openFocus);
+    $("iosTimerFocus").addEventListener("click", openFocus);
+    updateTimerPlatformHint();
     $("focusPause").addEventListener("click", () => { tmToggle(); if (tm().run) wakeOn(); });
     $("focusDone").addEventListener("click", () => tmFinish(false));
     $("focusClose").addEventListener("click", () => closeOverlay($("focusMode")));
@@ -3640,6 +3686,7 @@
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) return;
       if (tm().run) { tmTick(); if (!$("focusMode").hidden) wakeOn(); }
+      if (tmActive()) nativeTimerSync("sync");
       fetchExams(false);
     });
   }
@@ -3977,7 +4024,8 @@
       }
       noteExamChange();
       setInterval(() => { if (S.tab === "overview" && !document.hidden) { renderBoardLive(); renderExamRows(); } }, 30000);
-      if (tmActive()) { startTicker(); if (tm().run && tmTarget() && tmElapsed() >= tmTarget()) setTimeout(() => tmFinish(true), 900); }
+      if (tmActive()) { startTicker(); nativeTimerSync("sync"); if (tm().run && tmTarget() && tmElapsed() >= tmTarget()) setTimeout(() => tmFinish(true), 900); }
+      updateTimerPlatformHint();
       setTimeout(() => fetchExams(false), 2500);
       scheduleOcrPrefetch();
       await offerDraft();
