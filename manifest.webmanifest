@@ -1,13 +1,13 @@
 {
-  "name": "稜角 Learn Angle",
+  "name": "稜角 Learn Angle｜錯題本與讀書計時",
   "short_name": "稜角",
-  "description": "錯題本 讀書計時 讀書排程與學測落點預估 磨出你的稜角",
+  "description": "稜角 Learn Angle 錯題本 讀書計時 讀書排程與學習分析",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f5f0e6",
-  "theme_color": "#f5f0e6",
+  "background_color": "#111a28",
+  "theme_color": "#111a28",
   "lang": "zh-Hant",
   "icons": [
     {
@@ -21,6 +21,54 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"
+    },
+    {
+      "src": "./assets/icon-48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./assets/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -30,9 +78,9 @@
       "url": "./?go=timer",
       "icons": [
         {
-          "src": "./icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "./assets/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -42,9 +90,9 @@
       "url": "./?go=checkin",
       "icons": [
         {
-          "src": "./icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "./assets/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -54,9 +102,9 @@
       "url": "./?go=add",
       "icons": [
         {
-          "src": "./icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "./assets/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
@@ -66,9 +114,9 @@
       "url": "./?go=review",
       "icons": [
         {
-          "src": "./icon.svg",
-          "sizes": "any",
-          "type": "image/svg+xml"
+          "src": "./assets/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     }
