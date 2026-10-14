@@ -184,14 +184,60 @@
       result.labels.map(label => '<span>' + esc(label) + '</span>').join("") +
       '</div></div>';
   }
+
+  // Deterministic proofreading; report structural and ambiguous math without
+  // solving the question or silently changing arrows, operands, or numerals.
+  function mathStructureWarnings(value, mathContext = false) {
+    const t = String(value || ""), warnings = [];
+    if (!mathContext && !/[\\$√∠≤≥≠≈∑∫]/.test(t)) return warnings;
+    let depth = 0, broken = false;
+    for (let i = 0; i < t.length; i++) {
+      if (t[i] === "\\" && /[{}]/.test(t[i + 1] || "")) { i++; continue; }
+      if (t[i] === "{") depth++;
+      else if (t[i] === "}") { depth--; if (depth < 0) { broken = true; depth = 0; } }
+    }
+    if (depth || broken) warnings.push("LaTeX 大括號未正確配對");
+    [["\\(", "\\)"], ["\\[", "\\]"]].forEach(([left,right]) => {
+      if (t.split(left).length !== t.split(right).length) warnings.push("數學式起訖標記 " + left + " " + right + " 不完整");
+    });
+    if (/\\(?:overrightarrow|overleftarrow|overline|vec|frac|sqrt|dfrac|tfrac)\b(?!\s*\{)/.test(t))
+      warnings.push("向量、線段、分數或根號的 LaTeX 參數可能不完整");
+    if (/(?:\^|_)\s*(?:$|[=+×÷,，)\]])/.test(t)) warnings.push("上標或下標後缺少內容");
+    if (mathContext) {
+      if (/[O0][A-Z]|[A-Z][O0]/.test(t) && /向量|投影|內積|正射影|正投影|線段/.test(t))
+        warnings.push("請核對大寫 O 與數字 0 及各點標籤");
+      if (/[x×][ \t]*[0-9]|[0-9][ \t]*[x×]/.test(t)) warnings.push("請核對字母 x 與乘號 ×");
+      if (/\d\s*[—–-]\s*\d/.test(t)) warnings.push("請核對負號、減號與連字號");
+    }
+    return [...new Set(warnings)].slice(0, 6);
+  }
+  function mathCandidateDifference(a, b) {
+    const scan = (t) => ({
+      nums: (String(t || "").match(/[+\-−]?\d+(?:\.\d+)?/g) || []).map(n => n.replace(/−/g, "-")),
+      signs: (String(t || "").match(/[=±×÷·⋅√∠≤≥<>+\-−^_]/g) || []).join(""),
+      vectors: (String(t || "").match(/\\(?:overrightarrow|overline|vec)\b|⃗|→/g) || []).join(",")
+    });
+    const x = scan(a), y = scan(b), issues = [];
+    if (x.nums.join("|") !== y.nums.join("|")) issues.push("數字或正負號");
+    if (x.signs !== y.signs) issues.push("運算符號");
+    if (x.vectors !== y.vectors) issues.push("向量或線段");
+    return issues;
+  }
+  function mathDiagnosticsHTML(value, mathContext) {
+    const warnings = mathStructureWarnings(value, mathContext);
+    return warnings.length ? '<div class="math-diagnostic" role="note"><strong>數學式檢查</strong><ul>' +
+      warnings.map(w => "<li>" + esc(w) + "</li>").join("") +
+      '</ul><small>只提示需要核對的符號 不會擅自修正題目</small></div>' : "";
+  }
+
   const mathPreviewTimers = Object.create(null);
   function showMathNotation(fieldId, noticeId, previewId) {
     const input = $(fieldId), notice = $(noticeId), preview = $(previewId);
     if (!input || !notice) return;
     const subjectIsMath = /數學/.test(radioVal("subject", ""));
     const report = analyzeMathNotation(input.value, subjectIsMath);
-    notice.innerHTML = mathNotationNoticeHTML(input.value, subjectIsMath);
-    notice.hidden = !report.needsReview;
+    notice.innerHTML = mathNotationNoticeHTML(input.value, subjectIsMath) + mathDiagnosticsHTML(input.value, subjectIsMath);
+    notice.hidden = !report.needsReview && !mathStructureWarnings(input.value, subjectIsMath).length;
     if (!preview) return;
     clearTimeout(mathPreviewTimers[previewId]);
     // Explicit math syntax is previewed with KaTeX; guessed vectors are not.
@@ -225,6 +271,20 @@
     } else if (kind === "fraction") {
       replacement = "\\(\\frac{" + (selected.trim() || "a") + "}{b}\\)";
       if (!selected) selectPart = "a";
+    } else if (kind === "power") {
+      replacement = "\\(" + (selected.trim() || "x") + "^{2}\\)";
+    } else if (kind === "index") {
+      replacement = "\\(" + (selected.trim() || "a") + "_{1}\\)";
+    } else if (kind === "angle") {
+      replacement = "\\(\\angle " + (selected.trim() || "ABC") + "\\)";
+    } else if (kind === "parallel") {
+      replacement = " \\(\\parallel\\) ";
+    } else if (kind === "perp") {
+      replacement = " \\(\\perp\\) ";
+    } else if (kind === "pi") {
+      replacement = "\\(\\pi\\)";
+    } else if (kind === "leq") {
+      replacement = " \\(\\leq\\) ";
     } else if (kind === "sqrt") {
       replacement = "\\(\\sqrt{" + (selected.trim() || "x") + "}\\)";
       if (!selected) selectPart = "x";
@@ -2309,9 +2369,8 @@
         const ordered = sortOcr(candidates, isMath);
         const best = ordered[0];
         const competing = ordered[1];
-        const uncertainMath = isMath && !!competing &&
-          ((best.text.match(/[0-9]+(?:\\.[0-9]+)?/g) || []).join(",") !==
-           (competing.text.match(/[0-9]+(?:\\.[0-9]+)?/g) || []).join(","));
+        const mathConflicts = isMath && competing && best ? mathCandidateDifference(best.text, competing.text) : [];
+        const uncertainMath = mathConflicts.length > 0;
         if (best) {
           const input = $("questionText");
           if (!input.value.trim() || input.value === OCR.lastAutoText) {
@@ -2326,7 +2385,7 @@
           previewVisuals(); scheduleDraft();
           status("ocrStatus", best
             ? (autoLight ? "暗部已自動調亮 " : "") +
-              (uncertainMath ? "不同模型讀到的數字有差異 " : "文字已辨識 ") +
+              (uncertainMath ? "不同模型的" + mathConflicts.join("、") + "有差異 " : "文字已辨識 ") +
               (regions.length ? "另擷取 " + Math.min(regions.length, room) + " 個圖像區塊 " : "") +
               "請對照原圖核對公式與數字"
             : "未辨識到可靠文字 原始圖片已保留 請手動輸入");
@@ -2493,7 +2552,7 @@
     const sec = (t, v, cls) => (v ? '<div class="sheet-sec"><h3>' + esc(t) + '</h3><p class="' + (cls || "") + '">' + esc(v) + "</p></div>" : "");
     $("modalBody").innerHTML = '<div class="q-tags"><span class="tag" style="--sc:' + subjColor(q.subject) + '">' + esc(q.subject) + "</span>" + tag + '<span class="diff" title="難度 ' + lv + '">' + [1, 2, 3, 4, 5].map((k) => '<i class="' + (k <= lv ? "on" : "") + '"></i>').join("") + "</span></div>" +
       (img ? '<img class="sheet-img" alt="原始錯題照片" src="' + img + '" data-zoom="' + esc(q.id) + '">' : "") +
-      mathNotationNoticeHTML(q.question, /數學/.test(q.subject || "")) + sec("題目", q.question || (img || normalizedVisuals(q.visuals).length ? "" : "沒有題目文字")) + visualHTML(q) + sec("答案", q.answer || "還沒有填寫", "rv-key") + sec("詳解", q.solution || "還沒有填寫") + sec("給未來的自己", q.reflection, "rv-note") +
+      mathNotationNoticeHTML(q.question, /數學/.test(q.subject || "")) + mathDiagnosticsHTML(q.question, /數學/.test(q.subject || "")) + sec("題目", q.question || (img || normalizedVisuals(q.visuals).length ? "" : "沒有題目文字")) + visualHTML(q) + sec("答案", q.answer || "還沒有填寫", "rv-key") + sec("詳解", q.solution || "還沒有填寫") + sec("給未來的自己", q.reflection, "rv-note") +
       '<div class="sheet-grid"><div><span>錯誤原因</span><strong>' + esc(q.reason || "未標記") + "</strong></div><div><span>下次複習</span><strong>" + esc(dateShort(q.dueDate) || "未排程") + "</strong></div><div><span>重做次數</span><strong>" + (q.reviewCount || 0) + " 次</strong></div><div><span>連續答對</span><strong>" + (q.streak || 0) + " 次</strong></div><div><span>加入日期</span><strong>" + esc(dateShort(q.createdDate)) + "</strong></div><div><span>題目來源</span><strong>" + esc(q.source || "未填寫") + "</strong></div></div>" +
       '<div class="sheet-actions"><button class="btn btn-primary" data-action="edit" data-id="' + esc(q.id) + '">' + icon("i-edit") + "編輯這題</button>" + (isDue(q) ? "" : '<button class="btn btn-ghost" data-action="queue" data-id="' + esc(q.id) + '">' + icon("i-cards") + "排入今天複習</button>") + '<button class="btn btn-quiet" data-action="delete" data-id="' + esc(q.id) + '">' + icon("i-trash") + "刪除</button></div>";
     $("modalBody").scrollTop = 0;
