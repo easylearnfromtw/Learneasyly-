@@ -3488,7 +3488,7 @@
     $("planSub").textContent = items.length
       ? items.length + " 項 · 預計 " + minLabel(dayStats.planned) + " · 完成 " + done.length + " 項"
       : "這一天尚未安排任務，從一個容易開始的目標著手";
-    $("scheduleDayRing").style.setProperty("--progress",rate);
+    $("scheduleDayRing").style.setProperty("--progress",rate + "%");
     $("scheduleDayPercent").textContent = rate + "%";
     $("scheduleDayPlanned").textContent = Math.round(dayStats.planned) + " 分";
     $("scheduleDayActual").textContent = Math.round(dayStats.actual) + " 分";
