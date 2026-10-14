@@ -9,7 +9,7 @@
   const DB_VERSION = 1;
   const DEFAULT_DATE = "2027-01-22";
   const ISO = /^\d{4}-\d{2}-\d{2}$/;
-  const TABS = ["overview", "add", "library", "review", "study", "analytics", "admit", "settings"];
+  const TABS = ["overview", "add", "library", "review", "study", "schedule", "analytics", "admit", "settings"];
   const COLOR_BANK = {
     "數學 A": "#2e7d5b", "數學 B": "#23898a", "國文": "#c2452d", "英文": "#4058b8", "物理": "#2f7fc1", "化學": "#8a55c2", "生物": "#4e9a3a", "地球科學": "#c08419",
     "歷史": "#9a5b3c", "地理": "#6f8b2e", "公民": "#c24e7a", "其他": "#6b7a74", "數學甲": "#2e7d5b", "數學乙": "#23898a", "英語": "#4058b8", "數學": "#2e7d5b",
@@ -79,7 +79,7 @@
   const LEVELS = { 1: "基礎 一看就懂", 2: "偏易 稍微想一下", 3: "中等 需要想一下", 4: "偏難 需要整合觀念", 5: "挑戰 大考壓軸等級" };
   const INTERVALS = [3, 7, 14, 30, 60, 90];
   const WEEK = ["日", "一", "二", "三", "四", "五", "六"];
-  const LABELS = { overview: "總覽", add: "新增錯題", library: "錯題資料庫", review: "今日複習", study: "讀書計畫", analytics: "學習分析", admit: "落點預估", settings: "設定與備份" };
+  const LABELS = { overview: "總覽", add: "新增錯題", library: "錯題資料庫", review: "今日複習", study: "讀書計時", schedule: "讀書排程", analytics: "學習分析", admit: "落點預估", settings: "設定與備份" };
 
   const QUOTES = [
     "慢慢來 {比較快}", "會錯的題目 {才是你的題目}", "把一題弄懂 {勝過十題略過}", "今天的錯題 {是明天的分數}",
@@ -656,7 +656,7 @@
     });
     S.baseTitle = (tab === "overview" ? "" : LABELS[tab] + " ") + "稜角 Learn Angle";
     document.title = S.baseTitle;
-    $("tabBar").classList.toggle("no-active", !["overview", "library", "review", "add", "study", "analytics"].includes(tab));
+    $("tabBar").classList.toggle("no-active", !["overview", "library", "review", "add", "study", "schedule", "analytics"].includes(tab));
     if (S.timer && S.timer.run) tmTick();
     updateTopSub();
     if (o.push !== false && location.hash !== "#" + tab) { try { history.pushState({ tab }, "", "#" + tab); } catch (e) {} }
@@ -667,6 +667,7 @@
     if (tab === "analytics") renderAnalytics();
     if (tab === "settings") renderSettings();
     if (tab === "study") renderStudy();
+    if (tab === "schedule") renderSchedule();
     if (tab === "admit") renderAdmit();
     if (tab === "add") { updateComplete(); if (cfg("ocrPrefetch", true) && !OCR.ready && S.db) preloadOCR(false); }
     requestAnimationFrame(() => {
@@ -3428,6 +3429,11 @@
       (isToday && !done ? '<button type="button" class="pi-start" data-plan-start="' + esc(p.id) + '" aria-label="開始計時">' + icon("i-play") + "</button>" : "") +
       '<button type="button" class="icon-btn mini" data-plan-edit="' + esc(p.id) + '" data-date="' + d + '" aria-label="編輯排程">' + icon("i-edit") + "</button></div>";
   }
+
+  function renderSchedule() {
+    renderPlan();
+  }
+
   function renderPlan() {
     const t = today();
     S.planWeek = S.planWeek || monday(t);
@@ -3560,7 +3566,7 @@
 
   /* 讀書頁 */
   function renderStudy() {
-    buildTimerChips(); renderTimer(); renderPlan(); renderStudyMotivation();
+    buildTimerChips(); renderTimer(); renderStudyMotivation();
     const t = today(); S.logDay = S.logDay || t;
     const list = sessionsOn(S.logDay).sort((a, b) => String(b.start).localeCompare(String(a.start)));
     const sum = list.reduce((a, x) => a + (x.sec || 0), 0) / 60;
@@ -3778,7 +3784,7 @@
     const pn = t.closest("[data-plan-new]");
     if (pn) { openPlanSheet(null, pn.dataset.planNew); return true; }
     const pday = t.closest("[data-plan-day]");
-    if (pday) { S.planDay = pday.dataset.planDay; S.logDay = S.planDay <= today() ? S.planDay : today(); renderStudy(); FX.haptic(3); return true; }
+    if (pday) { S.planDay = pday.dataset.planDay; renderSchedule(); FX.haptic(3); return true; }
     const le = t.closest("[data-log-edit]");
     if (le) { const x = sessionsOn(le.dataset.date).find((k) => k.id === le.dataset.logEdit); if (x) openLogSheet(x, le.dataset.date); return true; }
     const fav = t.closest("[data-fav]");
@@ -3897,11 +3903,13 @@
     if (S.tab === "analytics") renderAnalytics();
     if (S.tab === "settings") renderSettings();
     if (S.tab === "study") renderStudy();
+    if (S.tab === "schedule") renderSchedule();
     if (S.tab === "admit") renderAdmit();
   }
   function renderAll() {
     renderChrome(); renderOverview(); renderLibrary(); renderReview(); renderAnalytics(); renderSettings();
     if (S.tab === "study") renderStudy();
+    if (S.tab === "schedule") renderSchedule();
     if (S.tab === "admit") renderAdmit();
     nextCheer(false);
   }
